@@ -1,0 +1,23 @@
+name: Frontend CI
+
+on:
+  push:
+    paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "package.json"
+  pull_request:
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build
