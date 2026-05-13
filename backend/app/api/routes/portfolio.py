@@ -325,7 +325,9 @@ async def create_position(
     )
 
     # Get current price for response
+    print("Fetching quotes in create_position...")
     quotes = await service.market_provider.get_quotes([payload.symbol])
+    print("Fetched quotes in create_position:", quotes)
     current_price = quotes[0].get("price", payload.avg_price) if quotes else payload.avg_price
     position_value = position.quantity * current_price
     position_pnl = position_value - (position.quantity * position.avg_price)

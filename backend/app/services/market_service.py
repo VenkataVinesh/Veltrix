@@ -114,16 +114,34 @@ async def get_ohlc(symbol: str, timeframe: str = "1d") -> dict:
     step = step_map.get(normalized_timeframe, 1.0)
     count = count_map.get(normalized_timeframe, 60)
     bias = drift_bias_map.get(normalized_timeframe, 0.1)
+    import random
+    import math
+    
+    rng = random.Random(seed)
+    
+    # Map timeframe to volatility
+    vol_map = {"1m": 0.0005, "5m": 0.001, "15m": 0.002, "1h": 0.004, "4h": 0.008, "1d": 0.015, "1w": 0.035}
+    vol = vol_map.get(normalized_timeframe, 0.01)
+    
+    # Random drift between -0.05% and +0.1% per step
+    drift = (rng.random() * 0.0015 - 0.0005)
+    
     points: list[dict] = []
     price = base
+    
     for index in range(count):
-        direction = -1 if ((seed + index) % 5 == 0) else 1
-        swing = ((index % 11) - 5) * step * 0.32
+        # Gauss random walk
+        change = rng.gauss(drift, vol)
+        close_price = max(1.0, price * math.exp(change))
+        
+        # High and low based on intra-step volatility
+        intra_vol = vol * 0.8
+        high_price = max(price, close_price) * (1.0 + abs(rng.gauss(0, intra_vol)))
+        low_price = min(price, close_price) * (1.0 - abs(rng.gauss(0, intra_vol)))
+        
         open_price = price
-        close_price = max(1.0, price + (direction * bias) + swing)
-        high_price = max(open_price, close_price) + step * (0.55 + (index % 3) * 0.1)
-        low_price = min(open_price, close_price) - step * (0.55 + (index % 4) * 0.08)
-        volume = 400000 + (index * 9100) + (step * 32000) + (seed % 10000)
+        volume = 400000 + int(rng.random() * 200000)
+        
         points.append(
             {
                 "t": f"{index}",

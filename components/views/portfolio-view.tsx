@@ -48,12 +48,17 @@ export function PortfolioView() {
   })
 
   const addPositionMutation = useMutation({
-    mutationFn: () => {
-      if (!portfolioId) throw new Error('No portfolio')
-      return api.createPosition(portfolioId, newSymbol.toUpperCase(), Number(newQuantity), Number(newPrice))
+    mutationFn: async () => {
+      let pid = portfolioId
+      if (!pid) {
+        const p = await api.createPortfolio('My Portfolio')
+        pid = p.id
+      }
+      return api.createPosition(pid, newSymbol.toUpperCase(), Number(newQuantity), Number(newPrice))
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['positions', portfolioId] })
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] })
+      queryClient.invalidateQueries({ queryKey: ['positions'] })
       queryClient.invalidateQueries({ queryKey: ['portfolio-summary'] })
       setShowAddPosition(false)
       setNewSymbol('')
@@ -99,10 +104,15 @@ export function PortfolioView() {
     )
   }
 
+  const calculatedEquity = positions?.reduce((acc, pos) => {
+    const currentPrice = quoteMap.get(pos.symbol)?.price ?? pos.avg_price
+    return acc + pos.quantity * currentPrice
+  }, 0)
+
   const metrics = hasData ? [
-    { label: 'Total Equity', value: `$${summary!.equity.toLocaleString('en-US', { maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'amber' as const },
+    { label: 'Total Equity', value: `$${(calculatedEquity ?? summary!.equity).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'amber' as const },
     { label: 'Daily P&L', value: `${summary!.daily_pnl >= 0 ? '+' : ''}$${summary!.daily_pnl.toLocaleString('en-US', { maximumFractionDigits: 2 })}`, icon: Activity, color: 'green' as const },
-    { label: 'Positions', value: `${summary!.positions}`, icon: Target, color: 'blue' as const },
+    { label: 'Positions', value: `${positions?.length ?? summary!.positions}`, icon: Target, color: 'blue' as const },
   ] : []
 
   return (
@@ -160,13 +170,62 @@ export function PortfolioView() {
           <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
             Create a portfolio and add positions to track your holdings.
           </p>
-          <button
-            onClick={() => setShowAddPosition(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Create Portfolio & Add Position
-          </button>
+          {!showAddPosition ? (
+            <button
+              onClick={() => setShowAddPosition(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Portfolio & Add Position
+            </button>
+          ) : (
+            <div className="max-w-xl mx-auto border border-border/50 p-4 bg-background rounded-xl text-left mt-4 shadow-xl">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium">Add Position</span>
+                <button onClick={() => setShowAddPosition(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="relative">
+                  <input
+                    list="available-symbols"
+                    value={newSymbol}
+                    onChange={(e) => {
+                      const sym = e.target.value.toUpperCase()
+                      setNewSymbol(sym)
+                      if (quoteMap.has(sym)) {
+                        const suggestedPrice = quoteMap.get(sym)!.price.toFixed(2)
+                        const currentIsAutoFilled = Array.from(quoteMap.values()).some(q => q.price.toFixed(2) === newPrice)
+                        if (!newPrice || currentIsAutoFilled) {
+                          setNewPrice(suggestedPrice)
+                        }
+                      }
+                    }}
+                    placeholder="Symbol"
+                    className="w-full rounded-lg bg-secondary/40 p-2 text-sm font-mono"
+                  />
+                  <datalist id="available-symbols">
+                    {Array.from(quoteMap.values()).map(q => <option key={q.symbol} value={q.symbol}>{q.price.toFixed(2)}</option>)}
+                  </datalist>
+                </div>
+                <input value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} placeholder="Shares" type="number" className="rounded-lg bg-secondary/40 p-2 text-sm font-mono" />
+                <div className="relative">
+                  <input value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="Avg Price" type="number" step="0.01" className="w-full rounded-lg bg-secondary/40 p-2 text-sm font-mono" />
+                  {newSymbol && quoteMap.has(newSymbol) && (
+                    <div className="absolute -top-5 left-0 text-[10px] text-muted-foreground whitespace-nowrap">
+                      Suggested: ${quoteMap.get(newSymbol)!.price.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => addPositionMutation.mutate()}
+                  disabled={!newSymbol || !newQuantity || !newPrice || addPositionMutation.isPending}
+                  className="rounded-lg bg-primary text-primary-foreground p-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {addPositionMutation.isPending ? 'Adding...' : 'Add'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

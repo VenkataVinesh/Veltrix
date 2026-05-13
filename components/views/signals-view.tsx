@@ -154,7 +154,7 @@ export function SignalsView() {
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="p-3 rounded-xl bg-secondary/50">
                   <span className="text-xs text-muted-foreground">Support</span>
-                  <div className="font-mono font-semibold">${signal.entry.toFixed(2)}</div>
+                  <div className="font-mono font-semibold">${(signal.entry ?? 0).toFixed(2)}</div>
                 </div>
                 <div className="p-3 rounded-xl bg-success/10">
                   <span className="text-xs text-success">Target</span>

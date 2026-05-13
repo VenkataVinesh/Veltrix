@@ -59,8 +59,8 @@ class ForecastService:
         self.db.refresh(prediction)
         return prediction
 
-    def _build_forecast(self, symbol: str, horizon: str) -> Optional[dict]:
-        ohlc = get_ohlc(symbol, "1d")
+    async def _build_forecast(self, symbol: str, horizon: str) -> Optional[dict]:
+        ohlc = await get_ohlc(symbol, "1d")
         points = ohlc.get("points", []) if isinstance(ohlc, dict) else []
         if len(points) < 10:
             return None
@@ -75,7 +75,7 @@ class ForecastService:
         recent_returns = returns[-10:] if len(returns) >= 10 else returns
         trend_rate = statistics.mean(recent_returns) if recent_returns else 0.0
         slope = self._slope(closes)
-        signal = analyze_signal(symbol, "1d")
+        signal = await analyze_signal(symbol, "1d")
 
         volatility = statistics.stdev(recent_returns) if len(recent_returns) > 1 else 0.0
         volume_ratio = volumes[-1] / (statistics.mean(volumes[-20:]) if len(volumes) >= 20 else statistics.mean(volumes))
@@ -90,18 +90,29 @@ class ForecastService:
                 signal_bias -= 0.012
             confidence_bias += min(0.25, signal.confidence * 0.2)
 
-        projected_return = (trend_rate * 0.75) + (slope / current_price * 0.45 if current_price else 0.0) + signal_bias
-        projected_return *= horizon_multiplier
+        # Wire in the advanced ML Engine
+        from app.services.ml_engine.forecasting.models import ForecastingEngine
+        engine = ForecastingEngine()
+        horizon_days = 30 if horizon == "30d" else (7 if horizon == "7d" else 1)
+        
+        try:
+            print("Running ML...")
+            ml_result = await engine.generate_ensemble_forecast(symbol, closes, horizon_days)
+            print("Done ML")
+        except Exception as e:
+            print(f"Error in ML forecast: {e}")
+            return None
 
-        volatility_buffer = volatility * (0.55 + (horizon_multiplier / 10.0))
-        target_price = current_price * (1 + projected_return)
-        target_up = target_price * (1 + volatility_buffer)
-        target_down = max(0.01, target_price * (1 - volatility_buffer))
+        target_price = ml_result.predictions[-1]
+        target_down = ml_result.confidence_intervals[-1][0]
+        target_up = ml_result.confidence_intervals[-1][1]
+        
+        projected_return = (target_price - current_price) / current_price if current_price else 0.0
 
         support = signal.support if signal else min(closes[-20:])
         resistance = signal.resistance if signal else max(closes[-20:])
 
-        confidence = min(0.98, max(0.08, confidence_bias + min(0.35, abs(projected_return) * 9.0) + min(0.15, max(0.0, volume_ratio - 1.0) / 4.0)))
+        confidence = min(0.98, max(0.08, ml_result.metrics.get("r2", 0.9) * 0.9 + confidence_bias))
         direction = "BUY" if projected_return > 0.003 else "SELL" if projected_return < -0.003 else "HOLD"
 
         self._persist_prediction(symbol, horizon, round(target_price, 2), round(confidence, 3))
@@ -123,15 +134,22 @@ class ForecastService:
             "signal_confidence": round(signal.confidence, 3) if signal else 0.0,
             "timestamp": ohlc.get("generated_at") or datetime.utcnow().isoformat(),
             "source": ohlc.get("source", "market-data"),
+            "model_forecasts": {
+                **{
+                    name: [round(v, 2) for v in values]
+                    for name, values in ml_result.model_predictions.items()
+                },
+                "ensemble": [round(v, 2) for v in ml_result.predictions]
+            } if ml_result.model_predictions else {}
         }
 
-    def get_forecasts(self, horizons: list[str] | None = None) -> dict:
+    async def get_forecasts(self, horizons: list[str] | None = None) -> dict:
         horizons = horizons or ["1d", "7d", "30d"]
         items: list[dict] = []
 
         for symbol in self.symbols:
             for horizon in horizons:
-                forecast = self._build_forecast(symbol, horizon)
+                forecast = await self._build_forecast(symbol, horizon)
                 if forecast:
                     items.append(forecast)
 

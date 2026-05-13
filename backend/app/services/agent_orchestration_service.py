@@ -222,6 +222,24 @@ class AgentOrchestrationService:
         # Portfolio manager final decision
         pm_thought = self.pm.think(context)
         
+        # Wire ML Agents Orchestrator
+        try:
+            from app.services.ml_engine.agents.orchestrator import TradingAgentSystem
+            import asyncio
+            
+            system = TradingAgentSystem()
+            try:
+                ml_decision = asyncio.run(system.orchestrate_decision(symbol, context))
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+                ml_decision = loop.run_until_complete(system.orchestrate_decision(symbol, context))
+                
+            pm_thought["signal"] = ml_decision["consensus_signal"]
+            pm_thought["confidence"] = ml_decision["confidence_score"]
+            pm_thought["thesis"] = f"ML Ensemble (Risk/Macro/Tech) derived regime: {ml_decision['regime']}"
+        except Exception as e:
+            logger.error(f"TradingAgentSystem failed: {e}")
+
         timeline = [analyst_thought, bullish_thought, bearish_thought, pm_thought]
         
         return {

@@ -93,11 +93,11 @@ class AnalyticsService:
             if provider_points:
                 symbol_returns[symbol] = _extract_returns(provider_points)
             else:
-                ohlc = get_ohlc(symbol, timeframe="1d")
+                ohlc = await get_ohlc(symbol, timeframe="1d")
                 symbol_returns[symbol] = _extract_returns(list(ohlc.get("points", [])))
 
         benchmark_points = await provider_orchestrator.get_ohlc("SPY", "1d")
-        benchmark = _extract_returns(benchmark_points) if benchmark_points else _extract_returns(list(get_ohlc("SPY", timeframe="1d").get("points", [])))
+        benchmark = _extract_returns(benchmark_points) if benchmark_points else _extract_returns(list((await get_ohlc("SPY", timeframe="1d")).get("points", [])))
 
         portfolio_daily_returns: list[float] = []
         min_len = min([len(ret) for ret in symbol_returns.values() if ret] + [len(benchmark)] or [0])

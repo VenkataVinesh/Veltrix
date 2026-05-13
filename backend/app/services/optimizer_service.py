@@ -30,7 +30,8 @@ class OptimizerService:
         if provider_points:
             points = provider_points
         else:
-            points = get_ohlc(symbol, timeframe="1d").get("points", [])
+            fallback = await get_ohlc(symbol, timeframe="1d")
+            points = fallback.get("points", [])
         closes = [float(item.get("c", 0.0)) for item in points if float(item.get("c", 0.0)) > 0]
         if len(closes) < 2:
             return []

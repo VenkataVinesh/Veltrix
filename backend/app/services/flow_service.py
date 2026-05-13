@@ -86,10 +86,15 @@ class FlowService:
 
     def get_flow_feed(self, timeframe: str = "1d", limit: int = 6) -> dict:
         """Return the strongest flow candidates across the configured symbol set."""
+        import asyncio
+        return asyncio.run(self._get_flow_feed_async(timeframe=timeframe, limit=limit))
+
+    async def _get_flow_feed_async(self, timeframe: str = "1d", limit: int = 6) -> dict:
+        """Async implementation that properly awaits get_ohlc."""
         items: list[dict] = []
 
         for symbol in self.symbols:
-            ohlc = get_ohlc(symbol, timeframe)
+            ohlc = await get_ohlc(symbol, timeframe)
             points = ohlc.get("points", []) if isinstance(ohlc, dict) else []
             if len(points) < 10:
                 continue
@@ -100,7 +105,7 @@ class FlowService:
                 continue
 
             metrics = self._score_flow(closes, volumes)
-            if metrics["side"] == "NEUTRAL" and metrics["confidence"] < 0.25:
+            if metrics["side"] == "NEUTRAL" and metrics["confidence"] < 0.05:
                 continue
 
             items.append(

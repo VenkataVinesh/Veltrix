@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -37,9 +38,14 @@ interface ForecastItem {
   signal_confidence: number
   timestamp: string
   source: string
+  model_forecasts?: Record<string, number[]>
 }
 
 export function ForecastView() {
+  const [selectedSymbol, setSelectedSymbol] = useState('SPY')
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1d')
+  const [selectedAlgo, setSelectedAlgo] = useState('ensemble')
+
   const { data: forecastData, isLoading, isError } = useQuery({
     queryKey: ['forecasts', forecastSymbols.join(',')],
     queryFn: () => api.forecasts(forecastSymbols.join(','), '1d,7d,30d'),
@@ -48,8 +54,8 @@ export function ForecastView() {
   })
 
   const { data: history } = useQuery({
-    queryKey: ['ohlc', 'SPY', '1D'],
-    queryFn: () => api.ohlc('SPY', '1D'),
+    queryKey: ['ohlc', selectedSymbol, '1D'],
+    queryFn: () => api.ohlc(selectedSymbol, '1D'),
     refetchInterval: 15_000,
     retry: false,
   })
@@ -61,12 +67,15 @@ export function ForecastView() {
       .filter((item) => item.horizon === '1d')
       .map((item) => [item.symbol, item])
   )
+  
+  // Use selected symbol and timeframe for the main chart
+  const firstForecast = forecastBySymbol.get(`${selectedSymbol}:${selectedTimeframe}`)
+  
   const historicalCloses = history?.points?.map((point) => point.c) ?? []
 
   const activeSymbols = forecastData?.summary.symbols ?? 0
   const totalForecasts = forecastData?.summary.forecasts ?? 0
 
-  const firstForecast = dailyForecastBySymbol.get('SPY')
   const chartSeries = historicalCloses.slice(-48)
   const chartMin = chartSeries.length
     ? Math.min(...chartSeries, firstForecast?.support ?? Number.POSITIVE_INFINITY, firstForecast?.target_down ?? Number.POSITIVE_INFINITY)
@@ -78,14 +87,19 @@ export function ForecastView() {
     : firstForecast
       ? Math.max(firstForecast.target_up, firstForecast.resistance, firstForecast.current_price, firstForecast.forecast_price)
       : 1
-  const scaleX = (index: number) => (index / Math.max(chartSeries.length - 1, 1)) * 400
+  const forecastArray = firstForecast?.model_forecasts?.[selectedAlgo] ?? []
+  const totalPoints = chartSeries.length + forecastArray.length
+  const scaleX = (index: number) => (index / Math.max(totalPoints - 1, 1)) * 400
   const scaleY = (value: number) => 150 - ((value - chartMin) / Math.max(chartMax - chartMin, 1)) * 130
   const historicalPath = chartSeries.length
     ? chartSeries.map((value, index) => `${index === 0 ? 'M' : 'L'} ${scaleX(index)} ${scaleY(value)}`).join(' ')
     : ''
-  const targetPath = firstForecast
-    ? `M ${scaleX(Math.max(chartSeries.length - 1, 0))} ${scaleY(firstForecast.current_price)} L 400 ${scaleY(firstForecast.forecast_price)}`
-    : ''
+  const targetPath = forecastArray.length
+    ? `M ${scaleX(Math.max(chartSeries.length - 1, 0))} ${scaleY(firstForecast!.current_price)} ` +
+      forecastArray.map((v, i) => `L ${scaleX(chartSeries.length + i)} ${scaleY(v)}`).join(' ')
+    : firstForecast
+      ? `M ${scaleX(Math.max(chartSeries.length - 1, 0))} ${scaleY(firstForecast.current_price)} L 400 ${scaleY(firstForecast.forecast_price)}`
+      : ''
 
   return (
     <div className="space-y-6">
@@ -114,6 +128,48 @@ export function ForecastView() {
           </div>
         </div>
       </motion.div>
+
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Asset:</span>
+          <select 
+            value={selectedSymbol} 
+            onChange={(e) => setSelectedSymbol(e.target.value)}
+            className="rounded-xl bg-secondary/50 p-2.5 text-sm font-mono font-bold border border-border/40 focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {forecastSymbols.map(sym => (
+              <option key={sym} value={sym} className="bg-background">{sym}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Horizon:</span>
+          <select 
+            value={selectedTimeframe} 
+            onChange={(e) => setSelectedTimeframe(e.target.value)}
+            className="rounded-xl bg-secondary/50 p-2.5 text-sm font-medium border border-border/40 focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="1d" className="bg-background">1 Day</option>
+            <option value="7d" className="bg-background">7 Days</option>
+            <option value="30d" className="bg-background">30 Days</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Algorithm:</span>
+          <select 
+            value={selectedAlgo} 
+            onChange={(e) => setSelectedAlgo(e.target.value)}
+            className="rounded-xl bg-secondary/50 p-2.5 text-sm font-medium border border-border/40 focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="ensemble" className="bg-background">Ensemble (Rec.)</option>
+            <option value="lstm" className="bg-background">LSTM</option>
+            <option value="xgboost" className="bg-background">XGBoost</option>
+            <option value="prophet" className="bg-background">Prophet</option>
+          </select>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {forecastSymbols.map((symbol, i) => {

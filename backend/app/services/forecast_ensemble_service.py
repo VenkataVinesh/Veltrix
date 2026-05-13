@@ -59,8 +59,8 @@ class ForecastEnsembleService:
         self.models_cache[symbol] = forecaster
         return forecaster
     
-    def build_forecast(self, symbol: str, timeframe: str = '1d') -> dict:
-        payload = get_ohlc(symbol, timeframe)
+    async def build_forecast(self, symbol: str, timeframe: str = '1d') -> dict:
+        payload = await get_ohlc(symbol, timeframe)
         points = payload.get('points', [])
         closes = [float(point.get('c', 0.0)) for point in points if float(point.get('c', 0.0)) > 0]
 

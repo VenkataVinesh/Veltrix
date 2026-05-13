@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.get("")
-def get_forecasts(
+async def get_forecasts(
     symbols: str = Query(default="SPY,QQQ,AAPL,NVDA,MSFT,AMZN"),
     horizons: str = Query(default="1d,7d,30d"),
     user: User = Depends(get_current_user),
@@ -23,11 +23,11 @@ def get_forecasts(
     symbol_list = [item.strip().upper() for item in symbols.split(",") if item.strip()]
     horizon_list = [item.strip().lower() for item in horizons.split(",") if item.strip()]
     service = ForecastService(db, symbol_list)
-    return service.get_forecasts(horizon_list)
+    return await service.get_forecasts(horizon_list)
 
 
 @router.get("/ensemble/{symbol}")
-def get_ensemble_forecast(
+async def get_ensemble_forecast(
     symbol: str,
     timeframe: str = Query(default="1d"),
     user: User = Depends(get_current_user),
@@ -38,4 +38,4 @@ def get_ensemble_forecast(
     and support/resistance bands.
     """
     service = ForecastEnsembleService()
-    return service.build_forecast(symbol.upper(), timeframe=timeframe.lower())
+    return await service.build_forecast(symbol.upper(), timeframe=timeframe.lower())

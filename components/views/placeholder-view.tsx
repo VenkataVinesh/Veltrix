@@ -1,9 +1,7 @@
 'use client'
 
-'use client'
-
 import { motion } from 'framer-motion'
-import { LucideIcon, BarChart3, Shield, Globe2, Building2, Bell, Settings } from 'lucide-react'
+import { LucideIcon, BarChart3, Shield, Globe2, Bell, Settings } from 'lucide-react'
 import { GlassPanel } from '@/components/glass-panel'
 import { MetricCard } from '@/components/metric-card'
 import { InstitutionalFlow } from '@/components/institutional-flow'
@@ -77,6 +75,13 @@ export function AnalyticsView() {
     )
   }
 
+  const fmt = (v: unknown, decimals = 4): string => {
+    const n = typeof v === 'number' ? v : 0
+    return n.toFixed(decimals)
+  }
+  const fmtPct = (v: unknown): string => `${fmt(v, 2)}%`
+  const fmtUsd = (v: unknown): string => `$${(typeof v === 'number' ? v : 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -90,14 +95,14 @@ export function AnalyticsView() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard title="Alpha" value={(data.alpha ?? 0).toFixed(4)} glowColor="amber" size="sm" />
-        <MetricCard title="Beta" value={(data.beta ?? 0).toFixed(4)} glowColor="blue" size="sm" />
-        <MetricCard title="Sharpe" value={(data.sharpe ?? 0).toFixed(4)} glowColor="green" size="sm" />
-        <MetricCard title="Sortino" value={(data.sortino ?? 0).toFixed(4)} glowColor="green" size="sm" />
-        <MetricCard title="Info Ratio" value={(data.information_ratio ?? 0).toFixed(4)} glowColor="blue" size="sm" />
-        <MetricCard title="Total Return" value={`${(data.total_return_pct ?? 0).toFixed(2)}%`} glowColor="amber" size="sm" />
-        <MetricCard title="Equity" value={`$${(data.total_equity ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} glowColor="amber" size="sm" />
-        <MetricCard title="Invested" value={`$${(data.total_invested ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} glowColor="blue" size="sm" />
+        <MetricCard title="Alpha" value={fmt(data.alpha)} glowColor="amber" size="sm" />
+        <MetricCard title="Beta" value={fmt(data.beta)} glowColor="blue" size="sm" />
+        <MetricCard title="Sharpe" value={fmt(data.sharpe)} glowColor="green" size="sm" />
+        <MetricCard title="Sortino" value={fmt(data.sortino)} glowColor="green" size="sm" />
+        <MetricCard title="Info Ratio" value={fmt(data.information_ratio)} glowColor="blue" size="sm" />
+        <MetricCard title="Total Return" value={fmtPct(data.total_return_pct)} glowColor="amber" size="sm" />
+        <MetricCard title="Equity" value={fmtUsd(data.total_equity)} glowColor="amber" size="sm" />
+        <MetricCard title="Invested" value={fmtUsd(data.total_invested)} glowColor="blue" size="sm" />
       </div>
 
       <GlassPanel title="Performance Attribution" subtitle="Symbol-level contribution">
@@ -151,6 +156,8 @@ export function RiskView() {
     )
   }
 
+  const safeNum = (v: unknown): number => (typeof v === 'number' && isFinite(v) ? v : 0)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -164,10 +171,10 @@ export function RiskView() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard title="Value at Risk" value={`$${(data.var ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} glowColor="red" size="sm" />
-        <MetricCard title="Expected Shortfall" value={`$${(data.expected_shortfall ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} glowColor="red" size="sm" />
-        <MetricCard title="Max Drawdown" value={`${((data.max_drawdown ?? 0) * 100).toFixed(2)}%`} glowColor="red" size="sm" />
-        <MetricCard title="Concentration" value={(data.concentration_risk ?? 0).toFixed(4)} glowColor="blue" size="sm" />
+        <MetricCard title="Value at Risk" value={`$${safeNum(data.var).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} glowColor="red" size="sm" />
+        <MetricCard title="Expected Shortfall" value={`$${safeNum(data.expected_shortfall).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} glowColor="red" size="sm" />
+        <MetricCard title="Max Drawdown" value={`${(safeNum(data.max_drawdown) * 100).toFixed(2)}%`} glowColor="red" size="sm" />
+        <MetricCard title="Concentration" value={safeNum(data.concentration_risk).toFixed(4)} glowColor="blue" size="sm" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -176,7 +183,7 @@ export function RiskView() {
             {(data.stress_tests ?? []).map((test) => (
               <div key={test.metric} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30 text-sm">
                 <span>{test.metric}</span>
-                <span className="font-mono">${(test.value ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                <span className="font-mono">${safeNum(test.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
               </div>
             ))}
           </div>
@@ -186,8 +193,8 @@ export function RiskView() {
             {(data.scenario_engine ?? []).map((s) => (
               <div key={s.name ?? 'scenario'} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30 text-sm">
                 <span>{s.name ?? '—'}</span>
-                <span className={cn('font-mono', (s.shock_pct ?? 0) < 0 ? 'text-destructive' : 'text-success')}>
-                  {(s.shock_pct ?? 0) > 0 ? '+' : ''}{s.shock_pct ?? 0}%
+                <span className={cn('font-mono', safeNum(s.shock_pct) < 0 ? 'text-destructive' : 'text-success')}>
+                  {safeNum(s.shock_pct) > 0 ? '+' : ''}{safeNum(s.shock_pct).toFixed(2)}%
                 </span>
               </div>
             ))}
@@ -221,8 +228,13 @@ export function MacroView() {
     )
   }
 
-  const rates = (data as any).rates ?? {}
-  const commodities = (data as any).commodities ?? {}
+  const rates = (data as Record<string, unknown>).rates ?? {}
+  const commodities = (data as Record<string, unknown>).commodities ?? {}
+
+  const fmtVal = (val: unknown): string => {
+    if (typeof val === 'number' && isFinite(val)) return val.toFixed(2)
+    return '—'
+  }
 
   return (
     <div className="space-y-6">
@@ -237,11 +249,11 @@ export function MacroView() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Object.entries(rates).map(([key, val]) => (
-          <MetricCard key={key} title={key.toUpperCase()} value={String((val as number)?.toFixed(2) ?? '—')} glowColor="blue" size="sm" />
+        {Object.entries(rates as Record<string, unknown>).map(([key, val]) => (
+          <MetricCard key={key} title={key.toUpperCase()} value={fmtVal(val)} glowColor="blue" size="sm" />
         ))}
-        {Object.entries(commodities).map(([key, val]) => (
-          <MetricCard key={key} title={key.toUpperCase()} value={String((val as number)?.toFixed(2) ?? '—')} glowColor="amber" size="sm" />
+        {Object.entries(commodities as Record<string, unknown>).map(([key, val]) => (
+          <MetricCard key={key} title={key.toUpperCase()} value={fmtVal(val)} glowColor="amber" size="sm" />
         ))}
       </div>
     </div>

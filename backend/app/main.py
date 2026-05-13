@@ -149,6 +149,11 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"status": "ok", "service": settings.app_name, "docs": "/docs", "api": "/api/v1"}
+
+
 @app.get("/ready")
 def ready() -> dict[str, str]:
     return {"status": "ready"}

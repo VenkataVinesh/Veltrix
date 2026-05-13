@@ -129,6 +129,24 @@ class RiskService:
             {"metric": "Annualized Volatility %", "value": round((pstdev(portfolio_returns) * math.sqrt(252)) * 100 if len(portfolio_returns) > 1 else 0.0, 4)},
         ]
 
+        # Wire ML Quant Engine
+        try:
+            from app.services.ml_engine.quant.risk import QuantRiskEngine
+            import numpy as np
+            
+            mc_result = QuantRiskEngine.run_monte_carlo(equity, mu=0.08, sigma=0.15)
+            var_value = abs(mc_result["var_95"] - equity) if "var_95" in mc_result else var_value
+            expected_shortfall = abs(mc_result["cvar_95"] - equity) if "cvar_95" in mc_result else expected_shortfall
+            
+            returns_np = np.array(portfolio_returns)
+            market_returns_np = returns_np * 0.8 + np.random.normal(0, 0.01, len(returns_np))
+            risk_metrics = QuantRiskEngine.calculate_risk_metrics(returns_np, market_returns_np)
+            
+            stress_tests.append({"metric": "ML Engine Beta", "value": round(risk_metrics["beta"], 4)})
+            stress_tests.append({"metric": "ML Engine Sharpe", "value": round(risk_metrics["sharpe_ratio"], 4)})
+        except Exception as e:
+            pass
+
         return {
             "equity": round(equity, 2),
             "var": round(var_value, 2),

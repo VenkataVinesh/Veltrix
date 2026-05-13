@@ -9,7 +9,7 @@ type Subscription = {
   handler: MessageHandler
 }
 
-type ConnectionState = {
+export type ConnectionState = {
   connected: boolean
   stale: boolean
   connectedSince: string | null

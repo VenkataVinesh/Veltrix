@@ -48,6 +48,45 @@ class YahooProvider(MarketProvider):
                 continue
         return out
 
+    async def ohlc(self, symbol: str, timeframe: str = "1d") -> list[dict]:
+        """Fetch real OHLC data from Yahoo Finance."""
+        import asyncio
+        try:
+            ticker = yf.Ticker(symbol)
+            # Map timeframe to yfinance interval and period
+            interval_map = {
+                "1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "1h", "1d": "1d", "1w": "1wk"
+            }
+            timeframe_lower = timeframe.lower()
+            interval = interval_map.get(timeframe_lower, "1d")
+            
+            # Period depends on interval
+            period = "1d" if interval in ["1m", "5m", "15m"] else ("1mo" if interval == "1h" else "6mo")
+            
+            print(f"Yahoo OHLC request: {symbol}, tf={timeframe_lower}, int={interval}, per={period}")
+            # yfinance is blocking, use to_thread
+            df = await asyncio.to_thread(ticker.history, period=period, interval=interval)
+            print(f"Yahoo OHLC response: empty={df.empty}, rows={len(df)}")
+            
+            if df.empty:
+                logger.warning(f"Yahoo: No OHLC data for {symbol} (tf={timeframe_lower})")
+                return []
+                
+            out: list[dict] = []
+            for index, row in df.iterrows():
+                out.append({
+                    "t": index.strftime("%Y-%m-%d %H:%M:%S") if isinstance(index, datetime) else str(index),
+                    "o": round(float(row["Open"]), 2),
+                    "h": round(float(row["High"]), 2),
+                    "l": round(float(row["Low"]), 2),
+                    "c": round(float(row["Close"]), 2),
+                    "v": round(float(row["Volume"]), 2),
+                })
+            return out
+        except Exception as e:
+            logger.warning(f"Yahoo OHLC fetch failed for {symbol}: {e}")
+            return []
+
 
 class AlphaVantageProvider(MarketProvider):
     name = "alphavantage"

@@ -1,234 +1,223 @@
 'use client'
 
-import { useRef, useEffect, useMemo } from 'react'
-import { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, LineSeries, BarSeries, HistogramSeries, type IChartApi, type ISeriesApi, type Time, type CandlestickData, type LineData, type HistogramData, type BarData } from 'lightweight-charts'
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
+import {
+  createChart, ColorType, CrosshairMode, LineStyle,
+  CandlestickSeries, LineSeries, BarSeries, HistogramSeries,
+  type IChartApi, type ISeriesApi, type Time,
+  type CandlestickData, type LineData, type HistogramData, type BarData,
+} from 'lightweight-charts'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api-client'
-import { realtimeManager } from '@/lib/realtime-manager'
-import { buildChartPoints, type OhlcPoint, type ChartPoint } from '@/lib/market-indicators'
-import { cn } from '@/lib/utils'
+import { useWebSocket } from '@/lib/use-websocket'
+import { buildChartPoints, type OhlcPoint } from '@/lib/market-indicators'
 
 export type ChartMode = 'candles' | 'line' | 'bar'
 
 export interface TradingIndicators {
-  volume: boolean
-  rsi: boolean
-  macd: boolean
-  ema: boolean
-  sma: boolean
-  bollinger: boolean
-  volumeProfile: boolean
+  volume: boolean; rsi: boolean; macd: boolean
+  ema: boolean; sma: boolean; bollinger: boolean; volumeProfile: boolean
 }
 
-interface TradingChartProps {
-  symbol: string
-  timeframe: string
-  chartMode: ChartMode
-  indicators: TradingIndicators
-}
+interface Props { symbol: string; timeframe: string; chartMode: ChartMode; indicators: TradingIndicators; height?: number }
 
-const COLORS = {
-  text: '#8a8a9a',
-  grid: '#1a1a2e',
-  up: '#22c55e',
-  down: '#ef4444',
-  volume: '#3b82f6',
-  ema: '#38bdf8',
-  sma: '#a855f7',
-  bollinger: '#60a5fa',
-  crosshair: '#f59e0b',
-}
+const C = { text: '#7f8794', grid: '#171b24', up: '#61f2b2', down: '#ff6b7a', ema: '#8fd8ff', sma: '#a78bfa', bollinger: '#dce8ff', xhair: '#8fd8ff' }
 
-function toLcTime(t: string): Time {
+const BASE_TS = Math.floor(Date.now() / 1000)
+
+function t2lc(t: string | number, idx?: number): Time {
   const n = Number(t)
-  if (Number.isFinite(n)) return Math.floor(n) as Time
-  // Date string like "2026-02-17"
-  const parsed = new Date(t)
-  if (!isNaN(parsed.getTime())) return Math.floor(parsed.getTime() / 1000) as Time
-  // Fallback: use index as-is
-  return 0 as Time
+  // Real unix timestamp (> year 2000)
+  if (Number.isFinite(n) && n > 946_684_800) return Math.floor(n) as Time
+  // Simulated sequential index from backend (e.g. "0","1",.."59")
+  if (Number.isFinite(n) && n >= 0 && n < 10_000) {
+    // Map to real daily timestamps going backwards from today
+    return (BASE_TS - (9999 - Math.floor(n)) * 86_400) as Time
+  }
+  // ISO date string
+  const d = new Date(String(t))
+  if (!isNaN(d.getTime())) return Math.floor(d.getTime() / 1000) as Time
+  // Fallback using index
+  return (BASE_TS - ((idx ?? 0) * 86_400)) as Time
 }
 
-export function TradingChart({ symbol, timeframe, chartMode, indicators }: TradingChartProps) {
+export function TradingChart({ symbol, timeframe, chartMode, indicators, height = 460 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Bar'> | null>(null)
-  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
-  const emaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
-  const smaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
-  const bollURef = useRef<ISeriesApi<'Line'> | null>(null)
-  const bollLRef = useRef<ISeriesApi<'Line'> | null>(null)
-
-  const queryClient = useQueryClient()
-  const channel = `market:${symbol}:${timeframe.toLowerCase()}`
+  const mainRef = useRef<ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Bar'> | null>(null)
+  const volRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const emaRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const smaRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const buRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const blRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const [ready, setReady] = useState(false)
+  const qc = useQueryClient()
+  const { subscribe } = useWebSocket()
 
   useEffect(() => {
-    realtimeManager.connectIfNeeded()
-    const unsub = realtimeManager.subscribe(channel, (payload) => {
-      const point = (payload as Record<string, unknown>)?.point as Record<string, unknown> | undefined
-      if (!point) return
-      queryClient.setQueryData(['ohlc', symbol, timeframe], (current: unknown) => {
-        const data = current as { points: Array<Record<string, unknown>> } | undefined
-        if (!data?.points?.length) return current
-        const points = [...data.points]
-        const last = points[points.length - 1]
-        if (last?.t === point.t) points[points.length - 1] = point
-        else { points.push(point); if (points.length > 300) points.splice(0, points.length - 300) }
-        return { ...data, points }
+    const channel = `market:${symbol}:${timeframe.toLowerCase()}`
+    const unsubscribe = subscribe(channel, (p) => {
+      const pt = (p as Record<string, unknown>)?.point as Record<string, unknown> | undefined
+      if (!pt) return
+      qc.setQueryData(['ohlc', symbol, timeframe], (cur: unknown) => {
+        const d = cur as { points: unknown[] } | undefined
+        if (!d?.points?.length) return cur
+        const pts = [...d.points] as Record<string, unknown>[]
+        const last = pts[pts.length - 1]
+        if (last?.t === pt.t) pts[pts.length - 1] = pt
+        else { pts.push(pt); if (pts.length > 300) pts.splice(0, pts.length - 300) }
+        return { ...d, points: pts }
       })
     })
-    return () => unsub()
-  }, [queryClient, channel, symbol, timeframe])
+    return () => {
+      unsubscribe()
+    }
+  }, [subscribe, symbol, timeframe, qc])
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['ohlc', symbol, timeframe],
     queryFn: () => api.ohlc(symbol, timeframe),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 15_000, refetchInterval: 30_000,
   })
 
-  const chartData = useMemo(() => buildChartPoints((data?.points ?? []) as OhlcPoint[]), [data])
-  const dataSource = data?.source
+  const pts = useMemo(() => buildChartPoints((data?.points ?? []) as OhlcPoint[]), [data])
 
-  // Build series data
-  const candleData = useMemo((): CandlestickData[] =>
-    chartData.map((p) => ({ time: toLcTime(p.t), open: p.o, high: p.h, low: p.l, close: p.c })), [chartData])
+  const candleD = useMemo((): CandlestickData[] => pts.map((p, i) => ({ time: t2lc(p.t, i), open: p.o, high: p.h, low: p.l, close: p.c })), [pts])
+  const lineD = useMemo((): LineData[] => pts.map((p, i) => ({ time: t2lc(p.t, i), value: p.c })), [pts])
+  const volD = useMemo((): HistogramData[] => pts.map((p, i) => ({ time: t2lc(p.t, i), value: p.v, color: p.c >= p.o ? '#61f2b255' : '#ff6b7a55' })), [pts])
+  const emaD = useMemo((): LineData[] => pts.filter(p => p.ema20 != null).map((p, i) => ({ time: t2lc(p.t, i), value: p.ema20! })), [pts])
+  const smaD = useMemo((): LineData[] => pts.filter(p => p.sma20 != null).map((p, i) => ({ time: t2lc(p.t, i), value: p.sma20! })), [pts])
+  const buD = useMemo((): LineData[] => pts.filter(p => p.bollingerUpper != null).map((p, i) => ({ time: t2lc(p.t, i), value: p.bollingerUpper! })), [pts])
+  const blD = useMemo((): LineData[] => pts.filter(p => p.bollingerLower != null).map((p, i) => ({ time: t2lc(p.t, i), value: p.bollingerLower! })), [pts])
 
-  const lineData = useMemo((): LineData[] =>
-    chartData.map((p) => ({ time: toLcTime(p.t), value: p.c })), [chartData])
+  const destroy = useCallback(() => {
+    try { chartRef.current?.remove() } catch {}
+    chartRef.current = null; mainRef.current = null; volRef.current = null
+    emaRef.current = null; smaRef.current = null; buRef.current = null; blRef.current = null
+    setReady(false)
+  }, [])
 
-  const volumeData = useMemo((): HistogramData[] =>
-    chartData.map((p) => ({ time: toLcTime(p.t), value: p.v, color: p.c >= p.o ? COLORS.up : COLORS.down })), [chartData])
+  const build = useCallback((w: number, h: number) => {
+    const el = containerRef.current
+    if (!el || chartRef.current || w < 10 || h < 10) return
 
-  const emaData = useMemo((): LineData[] =>
-    chartData.filter((p) => p.ema20 != null).map((p) => ({ time: toLcTime(p.t), value: p.ema20! })), [chartData])
-
-  const smaData = useMemo((): LineData[] =>
-    chartData.filter((p) => p.sma20 != null).map((p) => ({ time: toLcTime(p.t), value: p.sma20! })), [chartData])
-
-  const bollUData = useMemo((): LineData[] =>
-    chartData.filter((p) => p.bollingerUpper != null).map((p) => ({ time: toLcTime(p.t), value: p.bollingerUpper! })), [chartData])
-
-  const bollLData = useMemo((): LineData[] =>
-    chartData.filter((p) => p.bollingerLower != null).map((p) => ({ time: toLcTime(p.t), value: p.bollingerLower! })), [chartData])
-
-  // Create chart
-  useEffect(() => {
-    if (!containerRef.current || chartRef.current) return
-    const chart = createChart(containerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: COLORS.text,
-        fontSize: 11,
-        fontFamily: "'JetBrains Mono', monospace",
-      },
-      grid: {
-        vertLines: { color: COLORS.grid, style: LineStyle.Dashed },
-        horzLines: { color: COLORS.grid, style: LineStyle.Dashed },
-      },
-      crosshair: {
-        mode: CrosshairMode.Magnet,
-        vertLine: { color: COLORS.crosshair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: COLORS.crosshair },
-        horzLine: { color: COLORS.crosshair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: COLORS.crosshair },
-      },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: COLORS.grid },
-      rightPriceScale: { borderColor: COLORS.grid },
+    const chart = createChart(el, {
+      width: Math.floor(w), height: Math.floor(h),
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: C.text, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" },
+      grid: { vertLines: { color: C.grid, style: LineStyle.Dashed }, horzLines: { color: C.grid, style: LineStyle.Dashed } },
+      crosshair: { mode: CrosshairMode.Magnet, vertLine: { color: C.xhair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#0c0c11' }, horzLine: { color: C.xhair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#0c0c11' } },
+      timeScale: { timeVisible: true, secondsVisible: false, borderColor: C.grid, barSpacing: 8 },
+      rightPriceScale: { borderColor: C.grid },
       handleScroll: { vertTouchDrag: false },
-      autoSize: true,
     })
     chartRef.current = chart
 
-    // Main price series
-    if (chartMode === 'candles') seriesRef.current = chart.addSeries(CandlestickSeries, {
-      upColor: COLORS.up, downColor: COLORS.down, borderUpColor: COLORS.up, borderDownColor: COLORS.down, wickUpColor: COLORS.up, wickDownColor: COLORS.down,
-    })
-    else if (chartMode === 'line') seriesRef.current = chart.addSeries(LineSeries, { color: COLORS.up, lineWidth: 2 })
-    else seriesRef.current = chart.addSeries(BarSeries, { upColor: COLORS.up, downColor: COLORS.down })
+    if (chartMode === 'candles') mainRef.current = chart.addSeries(CandlestickSeries, { upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down })
+    else if (chartMode === 'line') mainRef.current = chart.addSeries(LineSeries, { color: C.up, lineWidth: 2 })
+    else mainRef.current = chart.addSeries(BarSeries, { upColor: C.up, downColor: C.down })
 
-    // Volume
-    if (indicators.volume) {
-      volumeSeriesRef.current = chart.addSeries(HistogramSeries, { color: COLORS.volume, priceFormat: { type: 'volume' } })
-      chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } })
-    }
+    if (indicators.volume) { volRef.current = chart.addSeries(HistogramSeries, { color: '#8fd8ff33', priceFormat: { type: 'volume' }, priceScaleId: 'vol' }); chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } }) }
+    if (indicators.ema) emaRef.current = chart.addSeries(LineSeries, { color: C.ema, lineWidth: 1, lastValueVisible: false, priceLineVisible: false })
+    if (indicators.sma) smaRef.current = chart.addSeries(LineSeries, { color: C.sma, lineWidth: 1, lastValueVisible: false, priceLineVisible: false })
+    if (indicators.bollinger) { buRef.current = chart.addSeries(LineSeries, { color: C.bollinger, lineWidth: 1, lastValueVisible: false, priceLineVisible: false }); blRef.current = chart.addSeries(LineSeries, { color: C.bollinger, lineWidth: 1, lastValueVisible: false, priceLineVisible: false }) }
 
-    // Indicators
-    if (indicators.ema) emaSeriesRef.current = chart.addSeries(LineSeries, { color: COLORS.ema, lineWidth: 1, lastValueVisible: false, priceLineVisible: false })
-    if (indicators.sma) smaSeriesRef.current = chart.addSeries(LineSeries, { color: COLORS.sma, lineWidth: 1, lastValueVisible: false, priceLineVisible: false })
-    if (indicators.bollinger) {
-      bollURef.current = chart.addSeries(LineSeries, { color: COLORS.bollinger, lineWidth: 1, lastValueVisible: false, priceLineVisible: false })
-      bollLRef.current = chart.addSeries(LineSeries, { color: COLORS.bollinger, lineWidth: 1, lastValueVisible: false, priceLineVisible: false })
-    }
+    setReady(true)
+  }, [chartMode, indicators]) // eslint-disable-line
 
-    return () => {
-      chart.remove()
-      chartRef.current = null
-      seriesRef.current = null
-      volumeSeriesRef.current = null
-      emaSeriesRef.current = null
-      smaSeriesRef.current = null
-      bollURef.current = null
-      bollLRef.current = null
-    }
-  }, [chartMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Keep a stable ref to build so ResizeObserver always calls the latest version
+  const buildRef = useRef(build)
+  useEffect(() => { buildRef.current = build }, [build])
 
-  // Data updates
+  // ResizeObserver on the container div (always mounted)
   useEffect(() => {
-    const s = seriesRef.current
-    if (!s) return
-    if (chartMode === 'candles') (s as ISeriesApi<'Candlestick'>).setData(candleData)
-    else if (chartMode === 'line') (s as ISeriesApi<'Line'>).setData(lineData)
-    else (s as ISeriesApi<'Bar'>).setData(candleData as unknown as BarData[])
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0]; if (!e) return
+      const { width, height } = e.contentRect
+      if (chartRef.current) { chartRef.current.resize(Math.floor(width), Math.floor(height)) }
+      else { buildRef.current(width, height) }
+    })
+    ro.observe(el)
+    return () => { ro.disconnect(); destroy() }
+  }, []) // eslint-disable-line
 
-    volumeSeriesRef.current?.setData(volumeData)
-    emaSeriesRef.current?.setData(emaData)
-    smaSeriesRef.current?.setData(smaData)
-    bollURef.current?.setData(bollUData)
-    bollLRef.current?.setData(bollLData)
+  // Rebuild on chartMode change
+  useEffect(() => {
+    destroy()
+    const el = containerRef.current
+    if (!el) return
+    // Use getBoundingClientRect which always returns the actual rendered rect
+    const doRebuild = () => {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 10 && rect.height > 10) {
+        build(rect.width, rect.height)
+      } else {
+        // Fall back to a rAF if not yet painted
+        requestAnimationFrame(() => {
+          const r2 = el.getBoundingClientRect()
+          if (r2.width > 10 && r2.height > 10) build(r2.width, r2.height)
+        })
+      }
+    }
+    doRebuild()
+  }, [chartMode]) // eslint-disable-line
 
-    chartRef.current?.timeScale().fitContent()
-  }, [candleData, lineData, volumeData, emaData, smaData, bollUData, bollLData, chartMode])
+  // Push data
+  useEffect(() => {
+    if (!ready || !mainRef.current || !pts.length) return
+    try {
+      if (chartMode === 'candles') (mainRef.current as ISeriesApi<'Candlestick'>).setData(candleD)
+      else if (chartMode === 'line') (mainRef.current as ISeriesApi<'Line'>).setData(lineD)
+      else (mainRef.current as ISeriesApi<'Bar'>).setData(candleD as unknown as BarData[])
+      volRef.current?.setData(volD); emaRef.current?.setData(emaD); smaRef.current?.setData(smaD)
+      buRef.current?.setData(buD); blRef.current?.setData(blD)
+      chartRef.current?.timeScale().fitContent()
+    } catch { /* stale refs */ }
+  }, [ready, candleD, lineD, volD, emaD, smaD, buD, blD, chartMode, pts.length])
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-[400px] items-center justify-center rounded-2xl border border-border/60 bg-secondary/20">
-        <div className="space-y-3 text-center">
-          <div className="mx-auto h-10 w-10 animate-pulse rounded-full border border-primary/40 bg-primary/10" />
-          <p className="text-sm text-muted-foreground">Loading {symbol} {timeframe} chart...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (isError || !chartData.length) {
-    return (
-      <div className="flex h-full min-h-[400px] items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-        <div className="space-y-3 max-w-md">
-          <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">Chart data unavailable</p>
-            <p className="text-sm text-muted-foreground">Unable to load OHLC data for {symbol} on {timeframe}.</p>
-          </div>
-          <button onClick={() => refetch()} className="rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Retry</button>
-        </div>
-      </div>
-    )
-  }
-
-  const lastCandle = chartData[chartData.length - 1]
+  const last = pts.length ? pts[pts.length - 1] : null
+  const isUp = last ? last.c >= last.o : true
 
   return (
-    <div className="relative h-full min-h-[400px] w-full">
-      <div ref={containerRef} className="absolute inset-0" />
-      <div className="absolute left-3 top-3 rounded-lg border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-mono text-muted-foreground backdrop-blur z-10">
-        {symbol} · {data?.timeframe?.toUpperCase?.() ?? timeframe} · {dataSource ?? 'market'}
-      </div>
-      <div className={cn(
-        'absolute left-3 bottom-3 rounded-lg border px-3 py-1.5 text-xs font-mono backdrop-blur z-10',
-        lastCandle.c >= lastCandle.o ? 'border-success/40 bg-success/10 text-success' : 'border-destructive/40 bg-destructive/10 text-destructive',
-      )}>
-        ${lastCandle.c.toFixed(2)} · {lastCandle.c >= lastCandle.o ? 'Bullish' : 'Bearish'}
-      </div>
+    // containerRef is ALWAYS mounted — loading/error overlaid on top
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', height, background: 'linear-gradient(180deg,#050507,#09090b)' }}>
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050507' }}>
+          <div style={{ textAlign: 'center' }}>
+            <Loader2 className="w-6 h-6 animate-spin text-[#8fd8ff] mx-auto mb-2" />
+            <p className="text-xs text-gray-600 font-mono">Loading {symbol} {timeframe}...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error overlay */}
+      {!isLoading && (isError || !pts.length) && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050507' }}>
+          <div style={{ textAlign: 'center', padding: '0 24px' }}>
+            <AlertTriangle className="w-7 h-7 text-[#ff6b7a]/60 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 mb-3">No chart data · {symbol} {timeframe}</p>
+            <button onClick={() => refetch()} className="flex items-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #1a1a28' }}>
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Badges (only when data present) */}
+      {last && !isLoading && (
+        <>
+          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'rgba(5,5,7,0.74)', backdropFilter: 'blur(12px)', border: '1px solid rgba(220,232,255,0.1)', borderRadius: 6, padding: '3px 8px', fontSize: 10, fontFamily: 'monospace', color: '#7f8794' }}>
+            {symbol} · {timeframe.toUpperCase()} · {data?.source ?? 'live'}
+          </div>
+          <div style={{ position: 'absolute', bottom: 10, left: 10, zIndex: 10, background: isUp ? 'rgba(97,242,178,0.08)' : 'rgba(255,107,122,0.08)', border: `1px solid ${isUp ? '#61f2b244' : '#ff6b7a44'}`, borderRadius: 6, padding: '3px 8px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: isUp ? '#61f2b2' : '#ff6b7a' }}>
+            ${last.c.toFixed(2)} {isUp ? '▲' : '▼'}
+          </div>
+        </>
+      )}
     </div>
   )
 }

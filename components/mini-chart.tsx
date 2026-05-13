@@ -55,8 +55,8 @@ export function MiniChart({
   const colorClasses = {
     green: { stroke: '#22c55e', fill: 'rgba(34, 197, 94, 0.1)' },
     red: { stroke: '#ef4444', fill: 'rgba(239, 68, 68, 0.1)' },
-    amber: { stroke: '#f59e0b', fill: 'rgba(245, 158, 11, 0.1)' },
-    blue: { stroke: '#3b82f6', fill: 'rgba(59, 130, 246, 0.1)' },
+    amber: { stroke: '#8fd8ff', fill: 'rgba(143, 216, 255, 0.1)' },
+    blue: { stroke: '#8fd8ff', fill: 'rgba(143, 216, 255, 0.1)' },
   }
 
   return (

@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation } from '@tanstack/react-query'
-import { SlidersHorizontal, TrendingUp, Shield, Target, PieChart, Brain } from 'lucide-react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, Cell } from 'recharts'
+import { SlidersHorizontal, TrendingUp, Shield, Target, PieChart as PieChartIcon, Brain } from 'lucide-react'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie, Cell } from 'recharts'
 import { GlassPanel } from '@/components/glass-panel'
+import { fmt, pct, usd } from '@/components/ui/formatters'
 import { MetricCard } from '@/components/metric-card'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api-client'
@@ -25,9 +26,8 @@ const SECTOR_OPTIONS = [
   'industrials', 'utilities', 'real_estate', 'materials', 'communication',
 ]
 
-const COLORS_CYCLE = ['#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#14b8a6']
-
 const PIE_COLORS = ['#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#ef4444', '#06b6d4', '#84cc16', '#f97316']
+
 
 export function OptimizerView() {
   const [amount, setAmount] = useState(50000)
@@ -147,20 +147,20 @@ export function OptimizerView() {
           <div className="grid gap-4 md:grid-cols-3">
             <MetricCard
               title="Expected Return"
-              value={`${(result.expected_return * 100).toFixed(2)}%`}
+              value={pct(result.expected_return)}
               icon={<TrendingUp className="w-5 h-5" />}
               trend="up" glowColor="green" size="lg"
             />
             <MetricCard
               title="Expected Volatility"
-              value={`${(result.expected_volatility * 100).toFixed(2)}%`}
+              value={pct(result.expected_volatility)}
               icon={<Shield className="w-5 h-5" />}
               trend={result.expected_volatility < 0.2 ? 'up' : 'down'}
               glowColor="blue" size="lg"
             />
             <MetricCard
               title="Sharpe Ratio"
-              value={result.expected_sharpe.toFixed(3)}
+              value={fmt(result.expected_sharpe, 3)}
               icon={<Target className="w-5 h-5" />}
               trend={result.expected_sharpe > 1 ? 'up' : 'down'}
               glowColor="amber" size="lg"
@@ -264,7 +264,7 @@ export function OptimizerView() {
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <div>
                       <span>Notional</span>
-                      <div className="font-mono text-foreground">${item.notional.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                      <div className="font-mono text-foreground">{usd(item.notional)}</div>
                     </div>
                     <div>
                       <span>Shares</span>

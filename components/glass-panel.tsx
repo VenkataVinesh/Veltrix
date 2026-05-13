@@ -25,7 +25,7 @@ export function GlassPanel({
   animate = true
 }: GlassPanelProps) {
   const glowClasses = {
-    amber: 'border-primary/20',
+    amber: 'border-cyan-100/15',
     blue: 'border-accent/20',
     green: 'border-success/20',
     red: 'border-destructive/20',
@@ -43,7 +43,7 @@ export function GlassPanel({
     <Wrapper
       {...wrapperProps}
       className={cn(
-        "glass rounded-2xl overflow-hidden",
+        "premium-card overflow-hidden",
         glowClasses[glow],
         className
       )}

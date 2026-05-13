@@ -30,8 +30,8 @@ export function Watchlist() {
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: index * 0.05 }}
-          whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
-          className="relative flex items-center justify-between p-3 rounded-xl cursor-pointer group"
+          whileHover={{ backgroundColor: 'rgba(143,216,255,0.045)' }}
+          className="relative flex items-center justify-between p-3 rounded-lg cursor-pointer group"
         >
           <Link href={`/stocks/${item.symbol}`} className="absolute inset-0 rounded-xl" aria-label={`Open ${item.symbol} details`} />
           <div className="relative z-10 flex items-center gap-3">
@@ -40,7 +40,7 @@ export function Watchlist() {
               whileTap={{ scale: 0.9 }}
               className={cn(
                 "transition-colors",
-                item.starred ? "text-primary" : "text-muted-foreground hover:text-primary"
+                item.starred ? "text-[#8fd8ff]" : "text-muted-foreground hover:text-[#8fd8ff]"
               )}
             >
               <Star className={cn("w-4 h-4", item.starred && "fill-current")} />
@@ -49,9 +49,9 @@ export function Watchlist() {
               <div className="flex items-center gap-2">
                 <span className="font-mono font-semibold text-sm">{item.symbol}</span>
                 {item.change >= 0 ? (
-                  <TrendingUp className="w-3 h-3 text-success" />
+                  <TrendingUp className="w-3 h-3 text-[#61f2b2]" />
                 ) : (
-                  <TrendingDown className="w-3 h-3 text-destructive" />
+                  <TrendingDown className="w-3 h-3 text-[#ff6b7a]" />
                 )}
               </div>
               <span className="text-xs text-muted-foreground">{item.name}</span>
@@ -71,7 +71,7 @@ export function Watchlist() {
               <div className="font-mono text-sm">${item.price.toFixed(2)}</div>
               <div className={cn(
                 "text-xs font-mono",
-                item.change >= 0 ? "text-success" : "text-destructive"
+                item.change >= 0 ? "text-[#61f2b2]" : "text-[#ff6b7a]"
               )}>
                 {item.change >= 0 ? '+' : ''}{item.change}%
               </div>

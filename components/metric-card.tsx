@@ -91,7 +91,7 @@ export function MetricCard({
         transition: { duration: 0.2 } 
       }}
       className={cn(
-        "relative glass rounded-2xl overflow-hidden group cursor-pointer",
+        "relative premium-card overflow-hidden group cursor-pointer",
         glowClasses[glowColor],
         sizeClasses[size]
       )}
