@@ -4,6 +4,7 @@ from app.api.routes import (
 	agents,
 	analytics,
 	auth,
+	backtest,
 	copilot,
 	flows,
 	forecasts,
@@ -38,3 +39,4 @@ api_router.include_router(risk.router, prefix="/risk", tags=["risk"])
 api_router.include_router(macro.router, prefix="/macro", tags=["macro"])
 api_router.include_router(optimizer.router, prefix="/optimizer", tags=["optimizer"])
 api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
+api_router.include_router(backtest.router, prefix="/backtest", tags=["backtest"])
