@@ -1,0 +1,12 @@
+{
+  "experimentalServices": {
+    "web": {
+      "entrypoint": "package.json",
+      "routePrefix": "/"
+    },
+    "api": {
+      "entrypoint": "backend/app/main.py",
+      "routePrefix": "/_/backend"
+    }
+  }
+}
