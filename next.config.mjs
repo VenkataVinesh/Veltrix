@@ -1,19 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // No `ignoreBuildErrors` on purpose: `npx tsc --noEmit` is clean, and a
+  // terminal that ships type errors is a terminal that will lie about numbers.
   images: {
     unoptimized: true,
-  },
-  async rewrites() {
-    return [
-    {
-      source: '/api/v1/:path*',
-      // Proxy /api/v1/* -> backend's /api/v1/* by default
-      destination: process.env.NEXT_PUBLIC_API_BASE_URL ? `${process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, '')}/:path*` : 'http://127.0.0.1:8000/api/v1/:path*',
-    },
-    ]
   },
 }
 
