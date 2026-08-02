@@ -193,7 +193,12 @@ export function computeSignal(symbol: string, candles: Candle[]): SignalResult |
     })
   }
 
-  const momentum = Math.max(-1, Math.min(1, votes > 0 ? score / Math.max(1, votes * 0.5) : 0))
+  // Round BEFORE thresholding so the decision matches the momentum figure the
+  // UI displays. Without this, float noise (0.8 - 0.5 = 0.30000000000000004)
+  // makes an exactly-0.3 score render as "0.30" next to a BUY, contradicting
+  // the stated "BUY above +0.3" rule.
+  const raw = Math.max(-1, Math.min(1, votes > 0 ? score / Math.max(1, votes * 0.5) : 0))
+  const momentum = Math.round(raw * 1000) / 1000
   const signal = momentum > 0.3 ? 'BUY' : momentum < -0.3 ? 'SELL' : 'HOLD'
 
   // Probabilities derive from the SAME momentum that sets `signal`, so the
@@ -204,7 +209,7 @@ export function computeSignal(symbol: string, candles: Candle[]): SignalResult |
   return {
     symbol,
     signal,
-    momentum: +momentum.toFixed(3),
+    momentum,
     trend: momentum > 0.1 ? 'up' : momentum < -0.1 ? 'down' : 'sideways',
     bullishProbability: +bullishProbability.toFixed(3),
     bearishProbability: +(1 - bullishProbability).toFixed(3),

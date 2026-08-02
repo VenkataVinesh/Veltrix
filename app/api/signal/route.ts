@@ -9,7 +9,9 @@ export async function GET(req: Request) {
   const symbol = (searchParams.get('symbol') || 'BTC').toUpperCase()
 
   try {
-    const candles = await getCandles(symbol, 120)
+    // 30d on CoinGecko returns 4-hour bars (~180 points) — far more usable for
+    // indicators than 90d+, which switches to sparse 4-day candles.
+    const candles = await getCandles(symbol, 30)
     if ('unavailable' in candles) {
       return NextResponse.json({ symbol, unavailable: true, reason: candles.reason })
     }

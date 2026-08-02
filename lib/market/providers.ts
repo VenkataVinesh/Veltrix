@@ -85,12 +85,18 @@ export async function cryptoQuotes(symbols: string[]): Promise<Quote[]> {
     .filter((q): q is Quote => q !== null)
 }
 
+// CoinGecko's /ohlc endpoint only accepts these exact values — anything else
+// comes back as an empty array rather than an error.
+const CG_OHLC_DAYS = [1, 7, 14, 30, 90, 180, 365]
+const snapDays = (d: number) =>
+  CG_OHLC_DAYS.reduce((best, v) => (Math.abs(v - d) < Math.abs(best - d) ? v : best), CG_OHLC_DAYS[0])
+
 export async function cryptoCandles(symbol: string, days: number): Promise<Candle[]> {
   const meta = CRYPTO_IDS[symbol.toUpperCase()]
   if (!meta) return []
 
   const res = await fetch(
-    `${CG}/coins/${meta.id}/ohlc?vs_currency=usd&days=${days}`,
+    `${CG}/coins/${meta.id}/ohlc?vs_currency=usd&days=${snapDays(days)}`,
     { next: { revalidate: 60 } }
   )
   if (!res.ok) throw new Error(`CoinGecko OHLC ${res.status}`)

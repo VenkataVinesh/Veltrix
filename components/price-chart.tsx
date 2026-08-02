@@ -92,10 +92,20 @@ export function PriceChart({
   const buildRef = useRef(build)
   useEffect(() => { buildRef.current = build }, [build])
 
-  // Observe size; build once we have real dimensions
+  // Build from the element's current box straight away — don't wait on the
+  // ResizeObserver's first callback, which some embedded/headless browsers
+  // never deliver. RO then only handles genuine resizes.
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
+
+    const attempt = () => {
+      const r = el.getBoundingClientRect()
+      if (r.width > 10 && r.height > 10) { buildRef.current(r.width, r.height); return true }
+      return false
+    }
+    if (!attempt()) requestAnimationFrame(attempt)
+
     const ro = new ResizeObserver(([entry]) => {
       const { width, height: h } = entry.contentRect
       if (chartRef.current) chartRef.current.resize(Math.floor(width), Math.floor(h))
