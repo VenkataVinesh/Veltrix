@@ -35,7 +35,6 @@ export default async function StockPage({ params }: { params: Promise<{ symbol: 
                     ema: true,
                     sma: false,
                     bollinger: true,
-                    volumeProfile: false,
                   }}
                 />
               </div>

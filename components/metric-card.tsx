@@ -3,7 +3,6 @@
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 interface MetricCardProps {
   title: string
@@ -28,38 +27,6 @@ export function MetricCard({
   size = 'md',
   delay = 0
 }: MetricCardProps) {
-  const [displayValue, setDisplayValue] = useState('0')
-
-  useEffect(() => {
-    const numericValue = parseFloat(value.replace(/[^0-9.-]+/g, ''))
-    if (isNaN(numericValue)) {
-      setDisplayValue(value)
-      return
-    }
-
-    const duration = 1000
-    const steps = 30
-    const stepTime = duration / steps
-    const increment = numericValue / steps
-    let current = 0
-    let step = 0
-
-    const timer = setInterval(() => {
-      step++
-      current += increment
-      if (step >= steps) {
-        setDisplayValue(value)
-        clearInterval(timer)
-      } else {
-        const prefix = value.match(/^[^0-9-]*/)?.[0] || ''
-        const suffix = value.match(/[^0-9.]*$/)?.[0] || ''
-        setDisplayValue(`${prefix}${Math.abs(current).toLocaleString('en-US', { maximumFractionDigits: 2 })}${suffix}`)
-      }
-    }, stepTime)
-
-    return () => clearInterval(timer)
-  }, [value])
-
   const glowClasses = {
     amber: 'glow-amber border-primary/20',
     blue: 'glow-blue border-accent/20',
@@ -128,7 +95,7 @@ export function MetricCard({
           "font-bold font-mono tracking-tight",
           size === 'lg' ? 'text-3xl' : size === 'md' ? 'text-2xl' : 'text-xl'
         )}>
-          {displayValue}
+          {value}
         </div>
 
         {(change !== undefined || changeLabel) && (

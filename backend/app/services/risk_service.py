@@ -170,13 +170,16 @@ class RiskService:
         # Calculate annualized volatility
         ann_vol = float(np.std(historical_portfolio_returns) * math.sqrt(252))
 
+        # `unit` tells the frontend how to format `value` — these metrics are
+        # genuinely heterogeneous (dollars, already-scaled percents, unitless
+        # indices/ratios) and must never be rendered with a blanket "%" suffix.
         stress_tests = [
-            {"metric": "Monte Carlo VaR (95%)", "value": round(var_value, 2)},
-            {"metric": "Expected Shortfall (CVaR)", "value": round(expected_shortfall, 2)},
-            {"metric": "Max Drawdown %", "value": round(max_drawdown * 100, 4)},
-            {"metric": "Concentration HHI", "value": round(concentration_risk, 6)},
-            {"metric": "Liquidity Risk Proxy", "value": round(liquidity_proxy, 6)},
-            {"metric": "Annualized Volatility %", "value": round(ann_vol * 100, 4)},
+            {"metric": "Monte Carlo VaR (95%)", "value": round(var_value, 2), "unit": "usd"},
+            {"metric": "Expected Shortfall (CVaR)", "value": round(expected_shortfall, 2), "unit": "usd"},
+            {"metric": "Max Drawdown %", "value": round(max_drawdown * 100, 4), "unit": "pct"},
+            {"metric": "Concentration HHI", "value": round(concentration_risk, 6), "unit": "index"},
+            {"metric": "Liquidity Risk Proxy", "value": round(liquidity_proxy, 6), "unit": "index"},
+            {"metric": "Annualized Volatility %", "value": round(ann_vol * 100, 4), "unit": "pct"},
         ]
 
         # Calculate Beta and Sharpe from ML engine or fallback calculations
@@ -184,8 +187,8 @@ class RiskService:
             from app.services.ml_engine.quant.risk import QuantRiskEngine
             market_returns_np = historical_portfolio_returns * 0.8 + np.random.normal(0, 0.01, len(historical_portfolio_returns))
             risk_metrics = QuantRiskEngine.calculate_risk_metrics(historical_portfolio_returns, market_returns_np)
-            stress_tests.append({"metric": "Beta vs Benchmark", "value": round(risk_metrics["beta"], 4)})
-            stress_tests.append({"metric": "Annualized Sharpe", "value": round(risk_metrics["sharpe_ratio"], 4)})
+            stress_tests.append({"metric": "Beta vs Benchmark", "value": round(risk_metrics["beta"], 4), "unit": "ratio"})
+            stress_tests.append({"metric": "Annualized Sharpe", "value": round(risk_metrics["sharpe_ratio"], 4), "unit": "ratio"})
         except Exception:
             pass
 
@@ -219,8 +222,8 @@ class RiskService:
             "concentration_risk": round(float(np.sum(weights ** 2)), 6),
             "liquidity_risk": 0.0,
             "stress_tests": [
-                {"metric": "Historical VaR (95%)", "value": round(var_value, 2)},
-                {"metric": "Expected Shortfall (CVaR)", "value": round(expected_shortfall, 2)}
+                {"metric": "Historical VaR (95%)", "value": round(var_value, 2), "unit": "usd"},
+                {"metric": "Expected Shortfall (CVaR)", "value": round(expected_shortfall, 2), "unit": "usd"}
             ],
             "scenario_engine": []
         }
@@ -237,8 +240,8 @@ class RiskService:
             "concentration_risk": round(concentration, 6),
             "liquidity_risk": 0.0,
             "stress_tests": [
-                {"metric": "Simulated VaR (95%)", "value": round(equity * 0.035, 2)},
-                {"metric": "Simulated Expected Shortfall", "value": round(equity * 0.05, 2)}
+                {"metric": "Simulated VaR (95%)", "value": round(equity * 0.035, 2), "unit": "usd"},
+                {"metric": "Simulated Expected Shortfall", "value": round(equity * 0.05, 2), "unit": "usd"}
             ],
             "scenario_engine": []
         }

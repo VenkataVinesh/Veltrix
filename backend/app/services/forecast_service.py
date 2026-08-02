@@ -90,17 +90,14 @@ class ForecastService:
                 signal_bias -= 0.012
             confidence_bias += min(0.25, signal.confidence * 0.2)
 
-        # Wire in the advanced ML Engine
+        # Statistical forecast engine (drift+EWMA / AR / naive, walk-forward validated)
         from app.services.ml_engine.forecasting.models import ForecastingEngine
         engine = ForecastingEngine()
         horizon_days = 30 if horizon == "30d" else (7 if horizon == "7d" else 1)
-        
+
         try:
-            print("Running ML...")
             ml_result = await engine.generate_ensemble_forecast(symbol, closes, horizon_days)
-            print("Done ML")
-        except Exception as e:
-            print(f"Error in ML forecast: {e}")
+        except Exception:
             return None
 
         target_price = ml_result.predictions[-1]
@@ -112,7 +109,10 @@ class ForecastService:
         support = signal.support if signal else min(closes[-20:])
         resistance = signal.resistance if signal else max(closes[-20:])
 
-        confidence = min(0.98, max(0.08, ml_result.metrics.get("r2", 0.9) * 0.9 + confidence_bias))
+        # Confidence = measured walk-forward directional hit-rate. If the
+        # backtest says ~50/50, we report ~50/50 — no invented certainty.
+        hit_rate = ml_result.metrics.get("hit_rate", 0.5)
+        confidence = min(0.95, max(0.05, hit_rate))
         direction = "BUY" if projected_return > 0.003 else "SELL" if projected_return < -0.003 else "HOLD"
 
         self._persist_prediction(symbol, horizon, round(target_price, 2), round(confidence, 3))
@@ -134,6 +134,13 @@ class ForecastService:
             "signal_confidence": round(signal.confidence, 3) if signal else 0.0,
             "timestamp": ohlc.get("generated_at") or datetime.utcnow().isoformat(),
             "source": ohlc.get("source", "market-data"),
+            "backtest": {
+                "mae": ml_result.metrics.get("mae"),
+                "rmse": ml_result.metrics.get("rmse"),
+                "hit_rate": ml_result.metrics.get("hit_rate"),
+                "n_test": ml_result.metrics.get("n_test"),
+                "method": "walk-forward one-step, out-of-sample",
+            },
             "model_forecasts": {
                 **{
                     name: [round(v, 2) for v in values]

@@ -8,9 +8,16 @@ const fmt = (v: unknown, dec = 2) => {
   const n = Number(v)
   return Number.isFinite(n) ? n.toFixed(dec) : '—'
 }
+// For raw fractions (0.03 -> "+3.00%") — alpha, sector/attribution weights.
 const pct = (v: unknown) => {
   const n = Number(v)
   return Number.isFinite(n) ? `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%` : '—'
+}
+// For values the backend already scaled to percent (2.97 -> "+2.97%") —
+// total_return_pct, performance_attribution[].return_pct.
+const pctScaled = (v: unknown) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '—'
 }
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -72,7 +79,7 @@ export function AnalyticsView() {
       {/* Top metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Return', value: pct(data?.total_return_pct), icon: TrendingUp, color: Number(data?.total_return_pct) >= 0 ? '#10b981' : '#ef4444' },
+          { label: 'Total Return', value: pctScaled(data?.total_return_pct), icon: TrendingUp, color: Number(data?.total_return_pct) >= 0 ? '#10b981' : '#ef4444' },
           { label: 'Sharpe Ratio', value: fmt(data?.sharpe), icon: Award, color: '#f59e0b' },
           { label: 'Sortino', value: fmt(data?.sortino), icon: Activity, color: '#06b6d4' },
           { label: 'Alpha', value: pct(data?.alpha), icon: BarChart3, color: '#8b5cf6' },
@@ -125,7 +132,7 @@ export function AnalyticsView() {
             <h3 className="text-sm font-semibold text-white mb-3">Risk Metrics</h3>
             <StatRow label="Beta" value={fmt(data?.beta)} />
             <StatRow label="Info Ratio" value={fmt(data?.information_ratio)} />
-            <StatRow label="Rolling Vol" value={`${fmt(data?.rolling_volatility?.slice(-1)?.[0])}%`} color="#f59e0b" />
+            <StatRow label="Rolling Vol (ann.)" value={`${fmt((data?.rolling_volatility?.slice(-1)?.[0] ?? 0) * 100, 1)}%`} color="#f59e0b" />
             <StatRow label="Total Equity" value={`$${Number(data?.total_equity || 0).toLocaleString()}`} color="#10b981" />
             <StatRow label="Invested" value={`$${Number(data?.total_invested || 0).toLocaleString()}`} />
           </Card>
@@ -145,10 +152,10 @@ export function AnalyticsView() {
                 <div key={s.sector ?? i} className="mb-3">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-gray-400">{s.sector}</span>
-                    <span className="text-gray-500 font-mono">{fmt(s.weight, 1)}%</span>
+                    <span className="text-gray-500 font-mono">{fmt((s.weight ?? 0) * 100, 1)}%</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                    <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(s.weight ?? 0, 100)}%` }} transition={{ delay: 0.4 + i * 0.04, duration: 0.6 }} style={{ background: COLORS[i % COLORS.length] }} />
+                    <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min((s.weight ?? 0) * 100, 100)}%` }} transition={{ delay: 0.4 + i * 0.04, duration: 0.6 }} style={{ background: COLORS[i % COLORS.length] }} />
                   </div>
                 </div>
               )
@@ -169,11 +176,11 @@ export function AnalyticsView() {
                     <span className="text-xs font-mono font-bold text-white w-16">{a.symbol}</span>
                     <div className="flex-1">
                       <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${Math.min(Math.abs(a.weight ?? 0), 100)}%`, background: (a.pnl ?? 0) >= 0 ? '#10b981' : '#ef4444' }} />
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(Math.abs(a.weight ?? 0) * 100, 100)}%`, background: (a.pnl ?? 0) >= 0 ? '#10b981' : '#ef4444' }} />
                       </div>
                     </div>
                     <span className={`text-xs font-mono w-16 text-right ${(a.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {pct(a.return_pct)}
+                      {pctScaled(a.return_pct)}
                     </span>
                   </div>
                 ))}

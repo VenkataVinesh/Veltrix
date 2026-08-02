@@ -5,25 +5,44 @@ from datetime import datetime
 import httpx
 
 from app.core.config import settings
+from app.services.market_providers import provider_orchestrator
 
 
 class MacroService:
     async def get_macro_dashboard(self) -> dict:
         fred = await self._fetch_fred_series()
         trading_economics = await self._fetch_tradingeconomics_calendar()
+        commodities = await self._with_live_gold_fallback(fred.get("commodities", {}))
 
         return {
             "generated_at": datetime.utcnow().isoformat(),
             "rates": fred.get("rates", {}),
             "inflation": fred.get("inflation", {}),
             "dxy": fred.get("dxy", {}),
-            "commodities": fred.get("commodities", {}),
+            "commodities": commodities,
             "calendar": trading_economics,
             "sentiment": {
                 "recession_probability": self._recession_probability(fred),
                 "macro_regime": self._macro_regime(fred),
             },
         }
+
+    async def _with_live_gold_fallback(self, commodities: dict) -> dict:
+        """FRED discontinued its free daily gold series (GOLDAMGBD228NLBM) in
+        2021, so it never returns data. Rather than show a false "$0.00",
+        substitute a real live quote from the same equity/futures provider
+        already used for the rest of the app (COMEX gold futures, GC=F).
+        """
+        if commodities.get("gold"):
+            return commodities
+        try:
+            quotes = await provider_orchestrator.get_quotes(["GC=F"])
+            price = next((float(q["price"]) for q in quotes if q.get("price")), None)
+            if price:
+                return {**commodities, "gold": price, "gold_source": "GC=F futures (live)"}
+        except Exception:
+            pass
+        return {**commodities, "gold": None}
 
     async def _fetch_fred_series(self) -> dict:
         api_key = settings.fred_api_key

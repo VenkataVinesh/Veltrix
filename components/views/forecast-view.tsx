@@ -39,6 +39,7 @@ interface ForecastItem {
   timestamp: string
   source: string
   model_forecasts?: Record<string, number[]>
+  backtest?: { mae?: number; rmse?: number; hit_rate?: number; n_test?: number; method?: string }
 }
 
 export function ForecastView() {
@@ -114,7 +115,9 @@ export function ForecastView() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Forecast Engine</h1>
-            <p className="text-sm text-muted-foreground">Live model outputs from trend, volatility, and signal context</p>
+            <p className="text-sm text-muted-foreground">
+              Drift/EWMA, AR, and naive baselines — walk-forward validated; confidence = measured directional hit-rate
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -163,10 +166,10 @@ export function ForecastView() {
             onChange={(e) => setSelectedAlgo(e.target.value)}
             className="rounded-xl bg-secondary/50 p-2.5 text-sm font-medium border border-border/40 focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="ensemble" className="bg-background">Ensemble (Rec.)</option>
-            <option value="lstm" className="bg-background">LSTM</option>
-            <option value="xgboost" className="bg-background">XGBoost</option>
-            <option value="prophet" className="bg-background">Prophet</option>
+            <option value="ensemble" className="bg-background">Ensemble (RMSE-weighted)</option>
+            <option value="drift_ewma" className="bg-background">Drift + EWMA vol</option>
+            <option value="ar" className="bg-background">AR(5) on returns</option>
+            <option value="naive" className="bg-background">Naive (random walk)</option>
           </select>
         </div>
       </div>
@@ -200,7 +203,7 @@ export function ForecastView() {
               <h3 className="font-semibold text-sm mb-1">{symbol}</h3>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold font-mono">{signal ? `${Math.round(signal.confidence * 100)}%` : '—'}</span>
-                <span className="text-xs text-muted-foreground">confidence</span>
+                <span className="text-xs text-muted-foreground">hit-rate (walk-fwd)</span>
               </div>
               <div className="mt-3 h-1.5 rounded-full bg-secondary overflow-hidden">
                 <motion.div
@@ -423,10 +426,13 @@ export function ForecastView() {
           <div className="rounded-xl border border-border/60 bg-secondary/30 p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <BarChart3 className="h-4 w-4" />
-              Confidence
+              Directional hit-rate
             </div>
             <div className="mt-2 text-2xl font-bold font-mono">
               {firstForecast ? `${Math.round(firstForecast.confidence * 100)}%` : '—'}
+            </div>
+            <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+              {firstForecast?.backtest?.n_test ? `${firstForecast.backtest.n_test} out-of-sample steps` : 'walk-forward'}
             </div>
           </div>
           <div className="rounded-xl border border-border/60 bg-secondary/30 p-4">
@@ -439,6 +445,15 @@ export function ForecastView() {
             </div>
           </div>
         </div>
+        {firstForecast?.backtest && (
+          <div className="border-t border-border px-4 py-2.5 font-mono text-[10px] text-muted-foreground">
+            Backtest ({firstForecast.backtest.method ?? 'walk-forward'}):
+            MAE ${firstForecast.backtest.mae?.toFixed(2) ?? '—'} ·
+            RMSE ${firstForecast.backtest.rmse?.toFixed(2) ?? '—'} ·
+            hit-rate {firstForecast.backtest.hit_rate != null ? `${(firstForecast.backtest.hit_rate * 100).toFixed(0)}%` : '—'} over {firstForecast.backtest.n_test ?? '—'} held-out steps.
+            A hit-rate near 50% means the model has no directional edge — that is reported honestly, not hidden.
+          </div>
+        )}
       </GlassPanel>
     </div>
   )

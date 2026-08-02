@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
@@ -40,7 +40,7 @@ export function Watchlist() {
               whileTap={{ scale: 0.9 }}
               className={cn(
                 "transition-colors",
-                item.starred ? "text-[#8fd8ff]" : "text-muted-foreground hover:text-[#8fd8ff]"
+                item.starred ? "text-[#f2a33c]" : "text-muted-foreground hover:text-[#f2a33c]"
               )}
             >
               <Star className={cn("w-4 h-4", item.starred && "fill-current")} />
@@ -49,9 +49,9 @@ export function Watchlist() {
               <div className="flex items-center gap-2">
                 <span className="font-mono font-semibold text-sm">{item.symbol}</span>
                 {item.change >= 0 ? (
-                  <TrendingUp className="w-3 h-3 text-[#61f2b2]" />
+                  <TrendingUp className="w-3 h-3 text-[#2ebd85]" />
                 ) : (
-                  <TrendingDown className="w-3 h-3 text-[#ff6b7a]" />
+                  <TrendingDown className="w-3 h-3 text-[#f6465d]" />
                 )}
               </div>
               <span className="text-xs text-muted-foreground">{item.name}</span>
@@ -71,7 +71,7 @@ export function Watchlist() {
               <div className="font-mono text-sm">${item.price.toFixed(2)}</div>
               <div className={cn(
                 "text-xs font-mono",
-                item.change >= 0 ? "text-[#61f2b2]" : "text-[#ff6b7a]"
+                item.change >= 0 ? "text-[#2ebd85]" : "text-[#f6465d]"
               )}>
                 {item.change >= 0 ? '+' : ''}{item.change}%
               </div>

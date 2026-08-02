@@ -148,7 +148,7 @@ export const api = {
   refresh: () => request<{ access_token: string; refresh_token: string; token_type: string }>("/auth/refresh", { method: "POST", body: JSON.stringify({}) }),
   quotes: () => request<Array<{ symbol: string; price: number; change: number; provider?: string; realtime?: boolean; stale?: boolean; generated_at?: string }>>("/markets/quotes"),
   ohlc: (symbol: string, timeframe = "1D") => request<{ symbol: string; timeframe: string; interval: string; source?: string; realtime?: boolean; stale?: boolean; points: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> }>(`/markets/ohlc/${symbol}?timeframe=${encodeURIComponent(timeframe)}`),
-  signal: (symbol: string, timeframe = "1D") => request<{ symbol: string; signal: string; confidence: number; momentum: number; trend: string; volatility: number; support: number; resistance: number; target_up: number; target_down: number; bullish_probability?: number; bearish_probability?: number; neutral_probability?: number; stop_price?: number; volatility_expectation?: number; model_version?: string; provider?: string }>(`/markets/signals/${symbol}?timeframe=${encodeURIComponent(timeframe)}`),
+  signal: (symbol: string, timeframe = "1D") => request<{ symbol: string; signal: string; confidence: number; momentum: number; trend: string; volatility: number; support: number; resistance: number; target_up: number; target_down: number; bullish_probability?: number; bearish_probability?: number; neutral_probability?: number; stop_price?: number; volatility_expectation?: number; model_version?: string; provider?: string; components?: Array<{ name: string; value: number; vote: 'bullish' | 'bearish' | 'neutral'; weight: number; detail: string }> }>(`/markets/signals/${symbol}?timeframe=${encodeURIComponent(timeframe)}`),
   signals: (symbols?: string, timeframe = "1D") => request<Array<{ symbol: string; signal: string; confidence: number; momentum: number; trend: string; volatility: number; support: number; resistance: number; target_up?: number; target_down?: number; bullish_probability?: number; bearish_probability?: number; neutral_probability?: number; stop_price?: number; volatility_expectation?: number; model_version?: string; provider?: string }>>(`/markets/signals?symbols=${encodeURIComponent(symbols || "AAPL,NVDA,TSLA,MSFT,AMZN")}&timeframe=${encodeURIComponent(timeframe)}`),
   watchlist: () => request<Array<{ id: number; symbol: string; created_at: string }>>("/watchlists/"),
   addWatchlist: (symbol: string) => request<{ id: number; symbol: string }>(`/watchlists/${symbol}`, { method: "POST" }),
@@ -285,7 +285,7 @@ export const api = {
   }>("/analytics/"),
   risk: () => request<{
     equity: number; var: number; expected_shortfall: number; max_drawdown: number; concentration_risk: number; liquidity_risk: number;
-    stress_tests: Array<{ metric: string; value: number }>;
+    stress_tests: Array<{ metric: string; value: number; unit?: 'usd' | 'pct' | 'ratio' | 'index' }>;
     scenario_engine: Array<{ name: string; shock_pct: number; projected_value: number; projected_pnl: number }>;
   }>("/risk/"),
   macro: () => request<Record<string, unknown>>("/macro/"),

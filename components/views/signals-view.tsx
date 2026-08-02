@@ -33,7 +33,7 @@ export function SignalsView() {
     target: signal.target_up,
     stop: signal.target_down,
     timeframe: '1D',
-    reason: `${signal.trend.toUpperCase()} trend | momentum ${signal.momentum.toFixed(2)} | volatility ${(signal.volatility * 100).toFixed(2)}%`,
+    reason: `EMA/SMA trend: ${signal.trend} · composite momentum ${signal.momentum >= 0 ? '+' : ''}${signal.momentum.toFixed(2)} · volatility ${(signal.volatility * 100).toFixed(2)}%`,
     provider: signal.provider,
     bullishProbability: Math.round((signal.bullish_probability ?? 0.5) * 100),
     bearishProbability: Math.round((signal.bearish_probability ?? 0.5) * 100),

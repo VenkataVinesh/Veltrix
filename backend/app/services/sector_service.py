@@ -63,19 +63,21 @@ class SectorService:
         all_stocks_list = list(all_stocks)
         quotes = await self.market_provider.get_quotes(all_stocks_list)
         
-        # Build quote dict for quick lookup
+        # Build quote dict for quick lookup. Providers already compute and
+        # return `change` (% change from prior close) directly — they don't
+        # expose a `prev_close` field, so re-deriving it from a nonexistent
+        # key always fell back to `price`, making change_pct==0 for every
+        # stock and every sector, always. Use the provided change directly.
         quote_dict = {}
         for quote in quotes:
             symbol = quote.get("symbol", "")
             price = quote.get("price", 0)
-            prev_close = quote.get("prev_close", price)  # Fallback to current if not available
-            change_pct = ((price - prev_close) / prev_close * 100) if prev_close > 0 else 0
-            
+            change_pct = quote.get("change", 0.0)
+
             quote_dict[symbol] = {
                 "price": price,
-                "prev_close": prev_close,
                 "change_pct": change_pct,
-                "source": quote.get("source", "unknown")
+                "source": quote.get("provider", "unknown")
             }
         
         # Calculate sector performance

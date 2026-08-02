@@ -1,46 +1,53 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-// Routes that never require auth
-const PUBLIC_ROUTES = ["/", "/login", "/signup"]
+const PROTECTED = ['/dashboard', '/trade', '/markets', '/portfolio', '/settings']
 
-// Routes that require the auth cookie
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/markets",
-  "/signals",
-  "/forecast",
-  "/analytics",
-  "/portfolio",
-  "/risk",
-  "/macro",
-  "/flow",
-  "/copilot",
-  "/alerts",
-  "/settings",
-  "/stocks",
-]
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({ request })
 
-export function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname
-
-  // Always allow public routes
-  if (PUBLIC_ROUTES.some((route) => path === route || path.startsWith(route + "/"))) {
-    return NextResponse.next()
-  }
-
-  // Protect app routes
-  const isProtected = PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix))
-  if (isProtected) {
-    const token = request.cookies.get("veltrix_access")?.value
-    if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url))
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
     }
+  )
+
+  // Refreshes the session cookie; must run before any auth check.
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { pathname } = request.nextUrl
+  const needsAuth = PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+
+  if (needsAuth && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
   }
 
-  return NextResponse.next()
+  if (user && (pathname === '/login' || pathname === '/signup')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
+
+  return response
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.*|apple-icon.*).*)"],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 }

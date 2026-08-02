@@ -146,7 +146,7 @@ export default function LoginPage() {
           >
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/5 mb-6">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs text-amber-400 font-medium">Institutional AI Trading Platform</span>
+              <span className="text-xs text-amber-400 font-medium">Market Analytics Terminal — student project</span>
             </div>
             <h1 className="text-5xl font-bold leading-tight tracking-tight">
               The terminal{' '}
@@ -156,7 +156,7 @@ export default function LoginPage() {
               {' '}precision.
             </h1>
             <p className="mt-4 text-lg text-muted-foreground leading-relaxed max-w-md">
-              Real-time AI signals, institutional risk management, and portfolio analytics — unified in one command center.
+              Real-time charts, a technical signal engine, portfolio optimization, and risk analytics — one workspace, full stack.
             </p>
           </motion.div>
 
@@ -196,7 +196,7 @@ export default function LoginPage() {
           {[
             { value: '4', label: 'Data Providers' },
             { value: '12+', label: 'Risk Metrics' },
-            { value: '<50ms', label: 'Data Latency' },
+            { value: 'WS', label: 'Live Streaming' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="text-2xl font-bold text-amber-400 font-mono">{stat.value}</div>
@@ -370,7 +370,7 @@ export default function LoginPage() {
             className="mt-8 flex items-center justify-center gap-2 text-xs text-muted-foreground/60"
           >
             <Shield className="w-3 h-3" />
-            <span>256-bit encryption · SOC 2 ready · Zero data sharing</span>
+            <span>JWT auth · PBKDF2-hashed passwords · local-first data</span>
           </motion.div>
         </motion.div>
       </div>

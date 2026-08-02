@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { motion } from 'framer-motion'
 import { useMemo } from 'react'
@@ -55,8 +55,8 @@ export function MiniChart({
   const colorClasses = {
     green: { stroke: '#22c55e', fill: 'rgba(34, 197, 94, 0.1)' },
     red: { stroke: '#ef4444', fill: 'rgba(239, 68, 68, 0.1)' },
-    amber: { stroke: '#8fd8ff', fill: 'rgba(143, 216, 255, 0.1)' },
-    blue: { stroke: '#8fd8ff', fill: 'rgba(143, 216, 255, 0.1)' },
+    amber: { stroke: '#f2a33c', fill: 'rgba(143, 216, 255, 0.1)' },
+    blue: { stroke: '#f2a33c', fill: 'rgba(143, 216, 255, 0.1)' },
   }
 
   return (

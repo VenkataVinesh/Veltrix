@@ -48,6 +48,7 @@ class SignalAnalysis(NamedTuple):
     volatility_expectation: float
     model_version: str
     timestamp: str
+    components: list  # per-indicator votes: what the composite is made of
 
 
 def calculate_sma(prices: list[float], period: int = 20) -> float:
@@ -202,45 +203,66 @@ async def analyze_signal(symbol: str, timeframe: str = "1d") -> SignalAnalysis |
         else:
             trend = "sideways"
         
-        # Signal generation
+        # Signal generation — every vote is recorded so the frontend can
+        # show exactly what the composite is made of (no invented narratives).
         momentum_score = 0.0
         consensus_count = 0
-        
+        components: list[dict] = []
+
         # RSI signals
         if rsi_14 < 30:
             momentum_score += 1.0  # Oversold
             consensus_count += 1
+            components.append({"name": "RSI(14)", "value": round(rsi_14, 1), "vote": "bullish", "weight": 1.0, "detail": "oversold (< 30)"})
         elif rsi_14 > 70:
             momentum_score -= 1.0  # Overbought
             consensus_count += 1
-        
+            components.append({"name": "RSI(14)", "value": round(rsi_14, 1), "vote": "bearish", "weight": 1.0, "detail": "overbought (> 70)"})
+        else:
+            components.append({"name": "RSI(14)", "value": round(rsi_14, 1), "vote": "neutral", "weight": 0.0, "detail": "inside 30–70 band"})
+
         # MACD signals
         if macd > macd_signal and macd_hist > 0:
             momentum_score += 0.8
             consensus_count += 1
+            components.append({"name": "MACD(12,26,9)", "value": round(macd_hist, 4), "vote": "bullish", "weight": 0.8, "detail": "above signal, positive histogram"})
         elif macd < macd_signal and macd_hist < 0:
             momentum_score -= 0.8
             consensus_count += 1
-        
+            components.append({"name": "MACD(12,26,9)", "value": round(macd_hist, 4), "vote": "bearish", "weight": 0.8, "detail": "below signal, negative histogram"})
+        else:
+            components.append({"name": "MACD(12,26,9)", "value": round(macd_hist, 4), "vote": "neutral", "weight": 0.0, "detail": "mixed crossover state"})
+
         # Price position in Bollinger Bands
         if current_price < bb_lower:
             momentum_score += 0.6
             consensus_count += 1
+            components.append({"name": "Bollinger(20,2)", "value": round(current_price, 2), "vote": "bullish", "weight": 0.6, "detail": "close below lower band"})
         elif current_price > bb_upper:
             momentum_score -= 0.6
             consensus_count += 1
-        
+            components.append({"name": "Bollinger(20,2)", "value": round(current_price, 2), "vote": "bearish", "weight": 0.6, "detail": "close above upper band"})
+        else:
+            components.append({"name": "Bollinger(20,2)", "value": round(current_price, 2), "vote": "neutral", "weight": 0.0, "detail": "inside bands"})
+
         # EMA crossover
         if current_price > ema_20 and ema_20 > sma_20:
             momentum_score += 0.5
             consensus_count += 1
+            components.append({"name": "Trend EMA20/SMA20", "value": round(ema_20, 2), "vote": "bullish", "weight": 0.5, "detail": "price > EMA20 > SMA20"})
         elif current_price < ema_20 and ema_20 < sma_20:
             momentum_score -= 0.5
             consensus_count += 1
-        
+            components.append({"name": "Trend EMA20/SMA20", "value": round(ema_20, 2), "vote": "bearish", "weight": 0.5, "detail": "price < EMA20 < SMA20"})
+        else:
+            components.append({"name": "Trend EMA20/SMA20", "value": round(ema_20, 2), "vote": "neutral", "weight": 0.0, "detail": "no aligned trend stack"})
+
         # Volume confirmation
         if volume_ratio > 1.5:
             momentum_score += 0.3
+            components.append({"name": "Volume vs 20-bar avg", "value": round(volume_ratio, 2), "vote": "bullish", "weight": 0.3, "detail": f"{round(volume_ratio, 1)}× average volume"})
+        else:
+            components.append({"name": "Volume vs 20-bar avg", "value": round(volume_ratio, 2), "vote": "neutral", "weight": 0.0, "detail": "no unusual volume"})
         
         # Normalize momentum
         if consensus_count > 0:
@@ -267,9 +289,9 @@ async def analyze_signal(symbol: str, timeframe: str = "1d") -> SignalAnalysis |
         target_down = max(support, current_price - (atr_14 * 2))
 
         ml_prediction = predict(symbol, timeframe, points=points)
-        bullish_probability = float(ml_prediction.get("bullish_probability", 0.5))
-        bearish_probability = float(ml_prediction.get("bearish_probability", 0.5))
-        neutral_probability = float(ml_prediction.get("neutral_probability", 1.0))
+        ml_bullish = float(ml_prediction.get("bullish_probability", 0.5))
+        ml_bearish = float(ml_prediction.get("bearish_probability", 0.5))
+        ml_neutral = float(ml_prediction.get("neutral_probability", 1.0))
         ml_confidence = float(ml_prediction.get("confidence", confidence))
         model_direction = str(ml_prediction.get("direction", signal)).upper()
         model_target_up = float(ml_prediction.get("target_range_high", target_up))
@@ -278,12 +300,44 @@ async def analyze_signal(symbol: str, timeframe: str = "1d") -> SignalAnalysis |
         volatility_expectation = float(ml_prediction.get("volatility_pct", volatility * 100.0))
         model_version = str(ml_prediction.get("model_version", "technical-only"))
 
-        if model_direction in {"BUY", "SELL"} and (ml_confidence >= confidence or signal == "HOLD"):
+        # Two independent models can produce two different headline signals
+        # (technical composite vs. this linear model). Whichever one actually
+        # decides `signal` below must be the SAME source that drives every
+        # other displayed number (momentum, trend, bullish/bearish odds) —
+        # otherwise the UI can show e.g. "BUY" next to "93% bearish", which
+        # is real numbers but a genuinely misleading juxtaposition.
+        ml_wins = model_direction in {"BUY", "SELL"} and (ml_confidence >= confidence or signal == "HOLD")
+
+        if ml_wins:
             signal = model_direction
             confidence = max(confidence, ml_confidence)
             target_up = max(target_up, model_target_up)
             target_down = min(target_down, model_target_down)
-        
+            momentum = max(-1.0, min(1.0, ml_bullish - ml_bearish))
+            trend = "up" if momentum > 0.1 else "down" if momentum < -0.1 else "sideways"
+            bullish_probability, bearish_probability, neutral_probability = ml_bullish, ml_bearish, ml_neutral
+            components.append({
+                "name": "ML linear model",
+                "value": round(ml_bullish, 3),
+                "vote": "bullish" if signal == "BUY" else "bearish",
+                "weight": round(ml_confidence, 2),
+                "detail": f"{model_version} overrides technical composite (bullish prob {round(ml_bullish, 2)})",
+            })
+        else:
+            # Technical composite wins — derive bullish/bearish odds from the
+            # SAME momentum score driving `signal`, not from the ML model's
+            # (unused) raw output, so the two numbers can never disagree.
+            bullish_probability = max(0.01, min(0.99, (momentum + 1.0) / 2.0))
+            bearish_probability = max(0.01, min(0.99, 1.0 - bullish_probability))
+            neutral_probability = max(0.0, min(1.0, 1.0 - abs(momentum)))
+            components.append({
+                "name": "ML linear model",
+                "value": round(ml_bullish, 3),
+                "vote": "bullish" if ml_bullish > 0.55 else "bearish" if ml_bullish < 0.45 else "neutral",
+                "weight": 0.0,
+                "detail": f"{model_version}, not used — technical composite had equal or higher confidence",
+            })
+
         return SignalAnalysis(
             symbol=symbol,
             signal=signal,
@@ -302,6 +356,7 @@ async def analyze_signal(symbol: str, timeframe: str = "1d") -> SignalAnalysis |
             volatility_expectation=round(volatility_expectation, 2),
             model_version=model_version,
             timestamp=datetime.utcnow().isoformat(),
+            components=components,
         )
     
     except Exception as e:
@@ -336,6 +391,7 @@ async def get_signals_for_symbols(symbols: list[str], timeframe: str = "1d") -> 
                 "volatility_expectation": 0.0,
                 "model_version": "fallback",
                 "timestamp": datetime.utcnow().isoformat(),
+                "components": [],
             })
     
     return signals

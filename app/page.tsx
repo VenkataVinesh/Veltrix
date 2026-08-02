@@ -138,11 +138,7 @@ export default function LandingPage() {
     const lenis = new Lenis({
       duration: 1.5,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      direction: 'vertical',
-      gestureDirection: 'vertical',
-      smooth: true,
-      mouseMultiplier: 1,
-      smoothTouch: false,
+      smoothWheel: true,
       touchMultiplier: 2,
       infinite: false,
     })
@@ -225,20 +221,19 @@ export default function LandingPage() {
             transition={{ duration: 1.2, type: "spring", bounce: 0.4 }}
             className="inline-flex flex-col items-center"
           >
-            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-xs font-medium text-cyan-300 mb-10 backdrop-blur-sm shadow-[0_0_30px_rgba(6,182,212,0.2)]">
-              <Sparkles className="w-4 h-4 animate-pulse text-cyan-400" />
-              Institutional-grade AI financial terminal
+            <div className="mb-10 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-5 py-2 text-xs font-medium text-amber-300">
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              Full-stack market analytics terminal
             </div>
 
-            <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter mb-8 leading-[0.85] text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/50 drop-shadow-2xl">
-              Trading, <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 animate-gradient-x">
-                Elevated.
-              </span>
+            <h1 className="mb-8 text-6xl font-black leading-[0.9] tracking-tighter text-foreground md:text-8xl lg:text-9xl">
+              The market,<br />
+              <span className="text-amber-400">in focus.</span>
             </h1>
 
-            <p className="text-lg md:text-2xl text-white/60 max-w-3xl mx-auto mb-14 leading-relaxed font-light">
-              Experience the cinematic future of finance. Realtime market data, AI-powered signals, and risk management—forged for precision.
+            <p className="mx-auto mb-14 max-w-3xl text-lg font-light leading-relaxed text-white/60 md:text-2xl">
+              Real-time charts, a transparent technical signal engine, walk-forward-validated forecasts,
+              and portfolio risk analytics — Next.js frontend, FastAPI backend, built end-to-end.
             </p>
 
             <motion.div
@@ -249,9 +244,8 @@ export default function LandingPage() {
             >
               <Link
                 href="/signup"
-                className="group relative inline-flex items-center justify-center gap-3 rounded-full px-10 py-5 text-lg font-bold text-white overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.4)] transition-all hover:shadow-[0_0_60px_rgba(6,182,212,0.6)] hover:-translate-y-1"
+                className="group relative inline-flex items-center justify-center gap-3 overflow-hidden rounded-full bg-amber-500 px-10 py-5 text-lg font-bold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-400"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 bg-[length:200%_auto] animate-gradient-x"></div>
                 <span className="relative z-10">Launch Terminal</span>
                 <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-2 transition-transform" />
               </Link>
@@ -278,10 +272,11 @@ export default function LandingPage() {
         <div className="w-full max-w-7xl mx-auto">
           <div className="text-center mb-24">
             <h2 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/40">
-              Intelligence at Scale
+              One workspace, real numbers
             </h2>
             <p className="text-xl text-white/50 max-w-2xl mx-auto">
-              A symphony of algorithms and beautiful design, delivering unparalleled insights.
+              Every metric on screen is computed from live market data — indicator votes,
+              backtest hit-rates, and risk measures you can trace to the code.
             </p>
           </div>
 
@@ -301,10 +296,10 @@ export default function LandingPage() {
             
             <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
               {[
-                { icon: Zap, label: 'Execution', value: '<50ms' },
-                { icon: Brain, label: 'AI Debate', value: '4 Agents' },
-                { icon: Shield, label: 'Risk Models', value: '8+ Tests' },
-                { icon: Globe2, label: 'Markets', value: 'Global' },
+                { icon: Zap, label: 'Streaming', value: 'WebSocket' },
+                { icon: Brain, label: 'Signal Engine', value: '5 Factors' },
+                { icon: Shield, label: 'Risk Models', value: 'VaR · CVaR' },
+                { icon: Globe2, label: 'Data Feeds', value: '4 Providers' },
               ].map((item, i) => (
                 <motion.div
                   key={item.label}
@@ -340,10 +335,10 @@ export default function LandingPage() {
              </div>
           </motion.div>
           <h2 className="text-6xl md:text-8xl font-black mb-8 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-white/30">
-            The Future is Here.
+            See it running.
           </h2>
           <p className="text-2xl text-white/50 mb-12 font-light">
-            Step into the next generation of institutional trading.
+            Sign in and inspect every number — the code behind it is on GitHub.
           </p>
           <Link
             href="/signup"

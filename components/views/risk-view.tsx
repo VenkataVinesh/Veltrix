@@ -95,15 +95,26 @@ export function RiskView() {
             <h3 className="text-sm font-semibold text-white mb-4">Stress Tests</h3>
             {stress.length === 0 ? (
               <p className="text-xs text-gray-600">No stress test data</p>
-            ) : stress.map((s, i) => (
-              <motion.div key={s.metric} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.05 }}
-                className="flex items-center justify-between py-2.5 border-b border-white/[0.03] last:border-0">
-                <span className="text-xs text-gray-500">{s.metric}</span>
-                <span className={`text-sm font-mono font-semibold ${Number(s.value) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {Number(s.value) < 0 ? '-' : '+'}{Math.abs(Number(s.value)).toFixed(2)}%
-                </span>
-              </motion.div>
-            ))}
+            ) : stress.map((s, i) => {
+              const v = Number(s.value)
+              const negative = v < 0
+              // usd/pct are risk-negative when positive (a bigger VaR/drawdown
+              // is worse); ratio/index have no inherent sign semantics.
+              const isRisky = (s.unit === 'usd' || s.unit === 'pct') ? v > 0 : negative
+              const formatted =
+                s.unit === 'usd' ? `${negative ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+                : s.unit === 'pct' ? `${negative ? '-' : '+'}${Math.abs(v).toFixed(2)}%`
+                : Math.abs(v) < 1 ? v.toFixed(4) : v.toFixed(2) // ratio / index — plain number, no % sign
+              return (
+                <motion.div key={s.metric} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.05 }}
+                  className="flex items-center justify-between py-2.5 border-b border-white/[0.03] last:border-0">
+                  <span className="text-xs text-gray-500">{s.metric}</span>
+                  <span className={`text-sm font-mono font-semibold ${isRisky ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {formatted}
+                  </span>
+                </motion.div>
+              )
+            })}
           </Card>
         </motion.div>
       </div>

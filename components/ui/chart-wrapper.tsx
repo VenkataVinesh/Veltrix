@@ -10,7 +10,7 @@ const TradingChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-[300px] rounded-lg border border-white/[0.06] bg-[#050507]" />
+      <div className="h-[300px] rounded-md border border-border bg-card" />
     ),
   }
 )
@@ -27,7 +27,7 @@ export function ChartWrapper({
   symbol = 'SPY',
   timeframe = 'daily',
   chartMode = 'candles',
-  indicators = { volume: true, rsi: false, macd: false, ema: true, sma: true, bollinger: true, volumeProfile: false },
+  indicators = { volume: true, rsi: false, macd: false, ema: true, sma: true, bollinger: true },
   height = 300,
 }: ChartWrapperProps) {
   // If a symbol prop is not provided, attempt to fetch a default from market quotes
@@ -40,7 +40,7 @@ export function ChartWrapper({
   const effectiveSymbol = symbol || (Array.isArray(quotes) && quotes.length ? quotes[0].symbol : 'SPY')
 
   return (
-    <div className="premium-card overflow-hidden p-2">
+    <div className="overflow-hidden rounded-md border border-border bg-card">
       <TradingChart
         symbol={effectiveSymbol}
         timeframe={timeframe}

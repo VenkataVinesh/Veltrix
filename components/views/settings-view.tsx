@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -11,7 +11,7 @@ function Card({ children, className = 'p-5' }: { children: React.ReactNode; clas
 
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
-    <button onClick={onChange} className="relative w-10 h-5 rounded-full transition-colors" style={{ background: on ? '#f59e0b' : '#1a1a28' }}>
+    <button onClick={onChange} className="relative w-10 h-5 rounded-full transition-colors" style={{ background: on ? '#f59e0b' : '#1e242d' }}>
       <motion.div animate={{ x: on ? 20 : 2 }} transition={{ type: 'spring', stiffness: 500, damping: 35 }}
         className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow" />
     </button>
@@ -56,7 +56,7 @@ export function SettingsView() {
             </div>
             <div>
               <p className="text-sm font-semibold text-white">{me?.email ?? 'Loading...'}</p>
-              <p className="text-xs text-gray-600 capitalize">{me?.role ?? 'trader'} · ID #{me?.id}</p>
+              <p className="text-xs text-gray-600 capitalize">{me?.role ?? 'trader'} Â· ID #{me?.id}</p>
             </div>
             <div className="ml-auto">
               <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
@@ -67,7 +67,7 @@ export function SettingsView() {
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="rounded-xl p-3" style={{ background: '#0a0a0f', border: '1px solid #141420' }}>
               <p className="text-gray-600 mb-1">Subscription</p>
-              <p className="text-white font-semibold capitalize">{sub?.plan ?? '—'}</p>
+              <p className="text-white font-semibold capitalize">{sub?.plan ?? 'â€”'}</p>
             </div>
             <div className="rounded-xl p-3" style={{ background: '#0a0a0f', border: '1px solid #141420' }}>
               <p className="text-gray-600 mb-1">Status</p>
