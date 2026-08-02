@@ -132,7 +132,28 @@
 .card-surface {
   background: var(--card);
   border-radius: var(--radius);
+  border: 1px solid transparent;
+  transition: border-color 0.25s ease, transform 0.25s ease;
 }
+/* Interactive cards lift; static ones just warm their edge */
+.card-surface:hover { border-color: color-mix(in srgb, var(--primary) 22%, transparent); }
+a.card-surface:hover, .card-surface[role='button']:hover { transform: translateY(-3px); }
+
+/* App screens rise on mount. Deliberately transform-only: an entrance that
+   animates opacity can leave content permanently invisible if the animation
+   never runs. Motion is a bonus, legibility is not negotiable. */
+@keyframes enter-up {
+  from { transform: translateY(14px); }
+  to   { transform: translateY(0); }
+}
+main .card-surface,
+main > div > div > .card-surface {
+  animation: enter-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+main .grid > *:nth-child(1) .card-surface, main .grid > *:nth-child(1).card-surface { animation-delay: 0.02s; }
+main .grid > *:nth-child(2) .card-surface, main .grid > *:nth-child(2).card-surface { animation-delay: 0.07s; }
+main .grid > *:nth-child(3) .card-surface, main .grid > *:nth-child(3).card-surface { animation-delay: 0.12s; }
+main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surface { animation-delay: 0.17s; }
 .panel-inset {
   background: var(--elevated);
   border-radius: var(--radius-xl);
@@ -192,6 +213,15 @@
 .chip-up   { background: rgba(198,242,78,0.12); color: var(--success); }
 .chip-down { background: rgba(248,113,113,0.12); color: var(--destructive); }
 .chip-flat { background: var(--elevated); color: var(--muted-foreground); }
+
+/* ─── Marquee ─── */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-marquee] { animation: none !important; }
+}
 
 /* ─── Price flash ─── */
 @keyframes flash-up   { 0% { background-color: rgba(198,242,78,0.16); } 100% { background-color: transparent; } }
