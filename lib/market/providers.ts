@@ -70,7 +70,7 @@ export async function cryptoQuotes(symbols: string[]): Promise<Quote[]> {
   const data = (await res.json()) as Record<string, { usd: number; usd_24h_change?: number }>
 
   return wanted
-    .map((sym) => {
+    .map((sym): Quote | null => {
       const row = data[CRYPTO_IDS[sym].id]
       if (!row) return null
       return {
@@ -78,7 +78,7 @@ export async function cryptoQuotes(symbols: string[]): Promise<Quote[]> {
         name: CRYPTO_IDS[sym].name,
         price: row.usd,
         change: row.usd_24h_change ?? 0,
-        assetType: 'crypto' as const,
+        assetType: 'crypto',
         source: 'coingecko',
       }
     })
@@ -116,7 +116,7 @@ export async function equityQuotes(symbols: string[]): Promise<Quote[] | Unavail
     return { unavailable: true, reason: 'FINNHUB_API_KEY not configured' }
   }
   const out = await Promise.all(
-    symbols.map(async (raw) => {
+    symbols.map(async (raw): Promise<Quote | null> => {
       const symbol = raw.toUpperCase()
       try {
         const res = await fetch(`${FH}/quote?symbol=${symbol}&token=${FINNHUB}`, {
@@ -130,7 +130,7 @@ export async function equityQuotes(symbols: string[]): Promise<Quote[] | Unavail
           name: EQUITY_NAMES[symbol] ?? symbol,
           price: d.c,
           change: d.dp ?? 0,
-          assetType: 'equity' as const,
+          assetType: 'equity',
           source: 'finnhub',
         }
       } catch {

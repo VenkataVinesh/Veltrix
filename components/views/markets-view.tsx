@@ -1,187 +1,142 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { BarChart2, Activity, Layers } from 'lucide-react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { TradingChart, type ChartMode } from '@/components/trading-chart'
-import { OrderBook } from '@/components/order-book'
-import { Watchlist } from '@/components/watchlist'
-import { api } from '@/lib/api-client'
+import Link from 'next/link'
+import { Search, AlertCircle } from 'lucide-react'
+import { api } from '@/lib/api'
+import { Card, Eyebrow, EmptyState, fmtPrice } from '@/components/ui/primitives'
+import { CRYPTO_SYMBOLS, EQUITY_SYMBOLS } from '@/lib/market/providers'
 import { cn } from '@/lib/utils'
 
-const TIMEFRAMES = ['1m', '5m', '15m', '1H', '4H', '1D', '1W']
-const SYMBOLS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'BTC']
-type IndicatorKey = 'volume' | 'ema' | 'sma' | 'bollinger' | 'rsi' | 'macd'
-
-const INDICATOR_OPTIONS: { key: IndicatorKey; label: string }[] = [
-  { key: 'volume', label: 'VOL' },
-  { key: 'ema', label: 'EMA' },
-  { key: 'sma', label: 'SMA' },
-  { key: 'bollinger', label: 'BB' },
-  { key: 'rsi', label: 'RSI' },
-  { key: 'macd', label: 'MACD' },
-]
-
-function SegGroup({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center gap-px rounded-md border border-border bg-secondary p-0.5">{children}</div>
-}
-
-function SegButton({ active, onClick, children, label }: { active: boolean; onClick: () => void; children: React.ReactNode; label?: string }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={active}
-      className={cn(
-        'rounded-[4px] px-2 py-1 font-mono text-[11px] font-medium transition-colors',
-        active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-      )}
-    >
-      {children}
-    </button>
-  )
-}
+type Filter = 'all' | 'crypto' | 'equity'
 
 export function MarketsView() {
-  const [symbol, setSymbol] = useState('SPY')
-  const [tf, setTf] = useState('1H')
-  const [chartMode, setChartMode] = useState<ChartMode>('candles')
-  const [indicators, setIndicators] = useState({
-    volume: true, ema: true, sma: false, bollinger: true, rsi: false, macd: false,
+  const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['quotes', 'all'],
+    queryFn: () => api.quotes([...CRYPTO_SYMBOLS, ...EQUITY_SYMBOLS]),
+    refetchInterval: 30_000,
   })
 
-  const { data: quoteData } = useQuery({ queryKey: ['quotes'], queryFn: api.quotes, staleTime: 10_000 })
-  const { data: signal } = useQuery({
-    queryKey: ['signal', symbol, tf],
-    queryFn: () => api.signal(symbol, tf),
-    refetchInterval: 12_000,
-    staleTime: 10_000,
-  })
+  const quotes = (data?.quotes ?? [])
+    .filter((q) => filter === 'all' || q.assetType === filter)
+    .filter((q) =>
+      !search ||
+      q.symbol.toLowerCase().includes(search.toLowerCase()) ||
+      q.name.toLowerCase().includes(search.toLowerCase())
+    )
 
-  const quote = useMemo(() => quoteData?.find(q => q.symbol === symbol), [symbol, quoteData])
-  const toggleIndicator = (key: IndicatorKey) => setIndicators(p => ({ ...p, [key]: !p[key] }))
+  const equityMissing = data && data.equityProvider === null
 
   return (
-    <div className="flex h-full max-w-[1600px] flex-col gap-3">
-
-      {/* ─── Controls bar ─── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-baseline gap-2.5">
-          <span className="font-mono text-sm font-semibold text-foreground">{symbol}</span>
-          {quote && (
-            <>
-              <span className="metric-value text-lg">${quote.price.toFixed(2)}</span>
-              <span className={cn('font-mono text-xs font-semibold', quote.change >= 0 ? 'text-success' : 'text-destructive')}>
-                {quote.change >= 0 ? '+' : ''}{quote.change.toFixed(2)}%
-              </span>
-            </>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        <SegGroup>
-          {SYMBOLS.map(s => (
-            <SegButton key={s} active={s === symbol} onClick={() => setSymbol(s)}>{s}</SegButton>
-          ))}
-        </SegGroup>
-
-        <SegGroup>
-          {TIMEFRAMES.map(t => (
-            <SegButton key={t} active={t === tf} onClick={() => setTf(t)}>{t}</SegButton>
-          ))}
-        </SegGroup>
-
-        <SegGroup>
-          {([['candles', BarChart2], ['line', Activity], ['bar', Layers]] as [ChartMode, React.ElementType][]).map(([mode, Icon]) => (
-            <SegButton key={mode} active={mode === chartMode} onClick={() => setChartMode(mode)} label={`${mode} chart`}>
-              <Icon className="h-3.5 w-3.5" />
-            </SegButton>
-          ))}
-        </SegGroup>
+    <div className="space-y-5">
+      <div>
+        <Eyebrow>Live prices</Eyebrow>
+        <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">Markets</h1>
       </div>
 
-      {/* ─── Main chart area ─── */}
-      <div className="grid flex-1 grid-cols-1 gap-3 xl:grid-cols-4">
+      {equityMissing && (
+        <div className="flex items-start gap-3 rounded-2xl bg-primary/10 px-5 py-4">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <p className="text-sm leading-relaxed text-foreground">
+            <span className="font-medium">Crypto only right now.</span>{' '}
+            <span className="text-muted-foreground">
+              Equity prices need a Finnhub API key in <code className="text-foreground">FINNHUB_API_KEY</code>.
+              Crypto works without any key.
+            </span>
+          </p>
+        </div>
+      )}
 
-        {/* Chart column */}
-        <div className="flex flex-col gap-3 xl:col-span-3">
-          <div className="overflow-hidden rounded-md border border-border bg-card">
-            {/* Indicator toolbar */}
-            <div className="flex flex-wrap items-center gap-1 border-b border-border px-2.5 py-1.5">
-              {INDICATOR_OPTIONS.map(ind => (
-                <button
-                  key={ind.key}
-                  onClick={() => toggleIndicator(ind.key)}
-                  aria-pressed={indicators[ind.key]}
-                  className={cn(
-                    'rounded-[4px] border px-2 py-0.5 font-mono text-[10px] font-medium transition-colors',
-                    indicators[ind.key]
-                      ? 'border-primary/35 bg-primary/10 text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {ind.label}
-                </button>
-              ))}
-              <div className="flex-1" />
-              <span className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground/70">
-                {symbol} · {tf}
-              </span>
-            </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 rounded-full bg-elevated p-1">
+          {(['all', 'crypto', 'equity'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              aria-pressed={filter === f}
+              className={cn(
+                'rounded-full px-4 py-2 text-sm font-medium capitalize transition-colors',
+                filter === f ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search assets"
+            aria-label="Search assets"
+            className="w-full rounded-full border border-border bg-elevated py-2.5 pl-11 pr-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+          />
+        </div>
+      </div>
 
-            <TradingChart
-              symbol={symbol}
-              timeframe={tf}
-              chartMode={chartMode}
-              indicators={indicators}
-              height={indicators.rsi && indicators.macd ? 560 : indicators.rsi || indicators.macd ? 520 : 460}
+      <Card className="p-0">
+        {isLoading ? (
+          <div className="space-y-2 p-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-12 animate-pulse rounded-xl bg-elevated" />
+            ))}
+          </div>
+        ) : quotes.length ? (
+          <div className="overflow-x-auto">
+            <table className="terminal-table">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Type</th>
+                  <th className="text-right">Price</th>
+                  <th className="text-right">24h change</th>
+                  <th className="text-right">Trade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map((q) => (
+                  <tr key={q.symbol}>
+                    <td>
+                      <span className="font-medium">{q.symbol}</span>
+                      <span className="ml-2 text-muted-foreground">{q.name}</span>
+                    </td>
+                    <td>
+                      <span className="chip chip-flat text-[11px] capitalize">{q.assetType}</span>
+                    </td>
+                    <td className="tnum text-right font-medium">{fmtPrice(q.price)}</td>
+                    <td className="text-right">
+                      <span className={cn('tnum font-medium', q.change >= 0 ? 'text-success' : 'text-destructive')}>
+                        {q.change >= 0 ? '+' : ''}{q.change.toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      {q.assetType === 'crypto' ? (
+                        <Link href="/trade" className="text-sm font-medium text-primary hover:underline">
+                          Trade
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-6">
+            <EmptyState
+              title="No matching assets"
+              body={search ? `Nothing matches "${search}".` : 'No quotes returned by the providers.'}
             />
           </div>
-
-          {/* Signal readout — real values from the technical engine */}
-          {signal && (
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-              {[
-                {
-                  label: 'Composite signal',
-                  value: signal.signal,
-                  color: signal.signal === 'BUY' ? 'var(--success)' : signal.signal === 'SELL' ? 'var(--destructive)' : 'var(--foreground)',
-                },
-                { label: 'Support', value: `$${(signal.support ?? 0).toFixed(2)}`, color: 'var(--success)' },
-                { label: 'Resistance', value: `$${(signal.resistance ?? 0).toFixed(2)}`, color: 'var(--destructive)' },
-                { label: 'ATR volatility', value: `${((signal.volatility ?? 0) * 100).toFixed(2)}%`, color: 'var(--chart-2)' },
-              ].map(b => (
-                <div key={b.label} className="rounded-md border border-border bg-card px-3 py-2">
-                  <p className="section-label mb-1">{b.label}</p>
-                  <p className="font-mono text-[13px] font-semibold tabular-nums" style={{ color: b.color }}>{b.value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right panel — Order book + Watchlist */}
-        <div className="flex flex-col gap-3">
-          <div className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="flex items-baseline justify-between border-b border-border px-3 py-2">
-              <h3 className="section-label">Order book</h3>
-              <span className="font-mono text-[9.5px] text-muted-foreground/70">depth</span>
-            </div>
-            <div style={{ height: 280 }}>
-              <OrderBook symbol={symbol} />
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="flex items-baseline justify-between border-b border-border px-3 py-2">
-              <h3 className="section-label">Watchlist</h3>
-              <span className="font-mono text-[9.5px] text-muted-foreground/70">tracked</span>
-            </div>
-            <Watchlist />
-          </div>
-        </div>
-      </div>
+        )}
+      </Card>
     </div>
   )
 }
