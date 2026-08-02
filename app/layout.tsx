@@ -8,9 +8,15 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 const jbMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jbmono', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Veltrix Terminal — Market Analytics & Portfolio Workspace',
+  title: 'Veltrix — Market Analytics Terminal',
   description:
-    'A full-stack market analytics terminal: real-time charts, technical signal engine, portfolio optimization, and risk analytics. Next.js + FastAPI.',
+    'A market analytics terminal where every number traces back to the data behind it: live crypto and equity pricing, an auditable technical signal engine, walk-forward validated forecasts, and RLS-secured paper portfolios.',
+  openGraph: {
+    title: 'Veltrix — Market Analytics Terminal',
+    description:
+      'Auditable signals, walk-forward validated forecasts, and paper trading against live prices.',
+    type: 'website',
+  },
   icons: {
     icon: [
       { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
