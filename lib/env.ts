@@ -37,5 +37,7 @@ export const env = {
   apiBaseUrl: getApiBaseUrl(),
   wsBaseUrl: getWsBaseUrl(),
   devAuthEmail: process.env.NEXT_PUBLIC_DEV_LOGIN_EMAIL ?? "demo@veltrix.ai",
-  devAuthPassword: process.env.NEXT_PUBLIC_DEV_LOGIN_PASSWORD ?? "Demo123!",
+  // No hardcoded fallback — set NEXT_PUBLIC_DEV_LOGIN_PASSWORD to enable the
+  // demo-login button in development.
+  devAuthPassword: process.env.NEXT_PUBLIC_DEV_LOGIN_PASSWORD ?? "",
 }

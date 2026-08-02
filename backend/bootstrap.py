@@ -64,10 +64,11 @@ def main():
         python -m uvicorn app.main:app --reload --port 8000
     
     📚 API Documentation: http://localhost:8000/docs
-    
-    🔐 Default Test Credentials:
-       Admin:  admin@veltrix.ai / Admin123!
-       Demo:   demo@veltrix.ai / Demo123!
+
+    🔐 Test accounts (admin@veltrix.ai, demo@veltrix.ai) are seeded on first
+       startup in development. Passwords come from SEED_ADMIN_PASSWORD /
+       SEED_DEMO_PASSWORD in .env, or are generated and printed in the
+       backend startup log.
         """)
         return 0
     else:

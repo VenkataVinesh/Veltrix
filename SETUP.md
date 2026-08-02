@@ -36,14 +36,13 @@ npm run dev
 
 ## Default Test Accounts
 
-After starting the backend, these accounts are automatically seeded:
+With `SEED_DEFAULT_USERS=true` (development environment only), the backend
+seeds `admin@veltrix.ai` (admin) and `demo@veltrix.ai` (trader) on first
+startup. Set their passwords via `SEED_ADMIN_PASSWORD` / `SEED_DEMO_PASSWORD`
+in `backend/.env` — if unset, a random password is generated per run and
+printed once in the backend log. No credentials are hardcoded or committed.
 
-| Email | Password | Role |
-|-------|----------|------|
-| `admin@veltrix.ai` | `Admin123!` | Admin |
-| `demo@veltrix.ai` | `Demo123!` | Trader |
-
-Use these credentials to log in at http://localhost:3001/login
+Log in at http://localhost:3001/login with the seeded account.
 
 ## Environment Setup
 

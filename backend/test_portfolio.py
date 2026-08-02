@@ -1,12 +1,13 @@
 import httpx
 import asyncio
+import os
 
 async def main():
     async with httpx.AsyncClient() as client:
-        # Login
+        # Login — password comes from the seeded dev account (see SETUP.md)
         resp = await client.post("http://localhost:8000/api/v1/auth/login", json={
-            "email": "demo@veltrix.ai",
-            "password": "Demo123!"
+            "email": os.environ.get("SEED_DEMO_EMAIL", "demo@veltrix.ai"),
+            "password": os.environ["SEED_DEMO_PASSWORD"]
         })
         print("Login Status:", resp.status_code)
         token = resp.json()["access_token"]

@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     request_rate_limit: int = 180
     supabase_url: str | None = None
     supabase_key: str | None = None
-    seed_default_users: bool = True  # Seed admin@veltrix.ai and demo@veltrix.ai on startup
+    seed_default_users: bool = True  # Seed admin@veltrix.ai and demo@veltrix.ai on startup (development only)
+    seed_admin_password: str | None = None  # SEED_ADMIN_PASSWORD; random per-run if unset
+    seed_demo_password: str | None = None   # SEED_DEMO_PASSWORD; random per-run if unset
     alphavantage_api_key: str | None = None
     alphavantage_base_url: str = "https://www.alphavantage.co/query"
     finnhub_api_key: str | None = None

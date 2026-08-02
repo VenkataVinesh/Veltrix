@@ -95,37 +95,26 @@ async def startup() -> None:
         logger.error(f"Failed to initialize database: {e}")
         raise
 
-    # Seed default users for local development
-    if settings.seed_default_users:
+    # Seed default users — development only. Passwords come from
+    # SEED_ADMIN_PASSWORD / SEED_DEMO_PASSWORD, or are generated per run and
+    # printed once in the log. Never hardcoded, never in production.
+    if settings.seed_default_users and settings.env == "development":
+        import secrets
         from app.db.session import SessionLocal
         from app.core.security import hash_password
         from app.db.models import User
         db = SessionLocal()
         try:
-            # Check if admin account exists
-            admin = db.query(User).filter(User.email == "admin@veltrix.ai").first()
-            if not admin:
-                admin = User(
-                    email="admin@veltrix.ai",
-                    password_hash=hash_password("Admin123!"),
-                    role="admin",
-                    is_active=True
-                )
-                db.add(admin)
-                logger.info("Seeded admin@veltrix.ai (password: Admin123!)")
-            
-            # Check if demo account exists
-            demo = db.query(User).filter(User.email == "demo@veltrix.ai").first()
-            if not demo:
-                demo = User(
-                    email="demo@veltrix.ai",
-                    password_hash=hash_password("Demo123!"),
-                    role="trader",
-                    is_active=True
-                )
-                db.add(demo)
-                logger.info("Seeded demo@veltrix.ai (password: Demo123!)")
-            
+            seeds = (
+                ("admin@veltrix.ai", "admin", settings.seed_admin_password),
+                ("demo@veltrix.ai", "trader", settings.seed_demo_password),
+            )
+            for email, role, configured in seeds:
+                if not db.query(User).filter(User.email == email).first():
+                    password = configured or secrets.token_urlsafe(12)
+                    db.add(User(email=email, password_hash=hash_password(password), role=role, is_active=True))
+                    source = "password from env" if configured else f"generated password: {password}"
+                    logger.info(f"Seeded {email} ({source})")
             db.commit()
         except Exception as e:
             logger.warning(f"Failed to seed default users: {e}")

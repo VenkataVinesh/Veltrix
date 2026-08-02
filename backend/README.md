@@ -13,8 +13,10 @@ The backend now boots with SQLite by default, creates tables automatically, and 
 
 ## Default local credentials
 
-- Admin: `admin@veltrix.ai` / `Admin123!`
-- Demo: `demo@veltrix.ai` / `Demo123!`
+Seeded in the development environment only: `admin@veltrix.ai` (admin) and
+`demo@veltrix.ai` (trader). Passwords come from `SEED_ADMIN_PASSWORD` /
+`SEED_DEMO_PASSWORD` in `.env`, or are randomly generated per run and printed
+once in the startup log. Nothing is hardcoded or committed.
 
 ## Optional infrastructure
 

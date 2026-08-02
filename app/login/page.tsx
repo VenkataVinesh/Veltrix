@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { Eye, EyeOff, ArrowRight, Cpu, Shield, TrendingUp, Sparkles, Activity, Zap, Lock, Mail } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { env } from '@/lib/env'
 
 // Animated grid background particles
 function GridBackground() {
@@ -332,19 +333,19 @@ export default function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="relative my-6">
+          {env.devAuthPassword && <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-border/40" />
             </div>
             <div className="relative flex justify-center text-xs text-muted-foreground">
               <span className="bg-[oklch(0.06_0.01_250)] px-3">or continue with demo</span>
             </div>
-          </div>
+          </div>}
 
-          {/* Demo login */}
-          <motion.button
+          {/* Demo login — only rendered when a demo password is configured */}
+          {env.devAuthPassword && <motion.button
             type="button"
-            onClick={() => loginMutation.mutate({ email: 'demo@veltrix.ai', password: 'Demo123!' })}
+            onClick={() => loginMutation.mutate({ email: env.devAuthEmail, password: env.devAuthPassword })}
             disabled={loginMutation.isPending}
             className="w-full flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-secondary/20 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 hover:border-border transition-all duration-200 disabled:opacity-50"
             whileHover={{ scale: 1.01 }}
@@ -352,7 +353,7 @@ export default function LoginPage() {
           >
             <Sparkles className="w-4 h-4 text-amber-400" />
             Try Demo Account
-          </motion.button>
+          </motion.button>}
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             No account yet?{' '}
