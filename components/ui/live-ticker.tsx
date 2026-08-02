@@ -15,6 +15,7 @@ export function LiveTicker() {
     const unsub = subscribe('quotes', (payload) => {
       // Payload shape: { symbol, price, change, ... }
       const q = payload as { symbol: string; price: number; change: number }
+      if (!q?.symbol) return // malformed frames would render with undefined keys
       setQuotes((prev) => {
         const idx = prev.findIndex((item) => item.symbol === q.symbol)
         if (idx >= 0) {

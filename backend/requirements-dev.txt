@@ -2,6 +2,9 @@
 # Install with: pip install -r requirements-dev.txt
 
 # Core dependencies
+numpy>=1.26.4
+pandas>=2.2.2
+scipy>=1.12.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 sqlalchemy>=2.0.36
