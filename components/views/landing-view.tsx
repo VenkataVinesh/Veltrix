@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUpRight, ArrowDown } from 'lucide-react'
@@ -7,8 +8,9 @@ import { api } from '@/lib/api'
 import { useLenis } from '@/lib/use-lenis'
 import { HeroCanvas } from '@/components/hero-canvas'
 import {
-  Preloader, KineticText, Reveal, Magnetic, Cursor, Marquee, CountUp,
-  HorizontalScroller, Grain,
+  Preloader, SplitText, Reveal, Magnetic, Cursor, Marquee, CountUp,
+  PinnedGallery, Grain, ScrollProgress, HighlightText, DrawChart, Parallax,
+  useHeroExit, useActiveChapter,
 } from '@/components/motion/primitives'
 import { fmtPrice } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
@@ -52,6 +54,13 @@ const CAPABILITIES = [
 export function LandingView() {
   useLenis()
 
+  const heroRef = useRef<HTMLElement>(null)
+  const heroContentRef = useRef<HTMLDivElement>(null)
+  const heroCanvasRef = useRef<HTMLDivElement>(null)
+  useHeroExit(heroRef, heroContentRef, heroCanvasRef)
+
+  const active = useActiveChapter(CHAPTERS.length)
+
   const { data: quoteData } = useQuery({
     queryKey: ['quotes', 'landing'],
     queryFn: () => api.quotes(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE', 'AVAX']),
@@ -69,10 +78,11 @@ export function LandingView() {
   return (
     <div className="relative bg-background">
       <Preloader />
+      <ScrollProgress />
       <Cursor />
       <Grain />
 
-      {/* Nav */}
+      {/* ─── Nav ─── */}
       <header className="fixed inset-x-0 top-0 z-50">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-6 md:px-12">
           <Link href="/" className="flex items-center gap-2.5">
@@ -93,22 +103,28 @@ export function LandingView() {
       </header>
 
       {/* ─── Hero ─── */}
-      <section className="relative flex h-[100svh] flex-col justify-end overflow-hidden">
-        <HeroCanvas series={series} />
+      <section ref={heroRef} className="relative flex h-[100svh] flex-col justify-end overflow-hidden">
+        <div ref={heroCanvasRef} className="absolute inset-0 will-change-transform">
+          <HeroCanvas series={series} />
+        </div>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/85 via-transparent to-background" />
 
-        <div className="relative mx-auto w-full max-w-[1600px] px-6 pb-[9vh] md:px-12">
+        <div ref={heroContentRef} className="relative mx-auto w-full max-w-[1600px] px-6 pb-[9vh] md:px-12">
           <div className="flex items-center gap-3">
             <span className="status-dot live" />
             <span className="eyebrow">
-              {btc ? `BTC ${fmtPrice(btc.price)} · ${btc.change >= 0 ? '+' : ''}${btc.change.toFixed(2)}% 24h` : 'Connecting to live feed'}
+              {btc
+                ? `BTC ${fmtPrice(btc.price)} · ${btc.change >= 0 ? '+' : ''}${btc.change.toFixed(2)}% 24h`
+                : 'Connecting to live feed'}
             </span>
           </div>
 
           <h1 className="mt-7 text-[clamp(2.8rem,9.5vw,9rem)] font-semibold leading-[0.92] tracking-[-0.045em]">
-            <KineticText>The market,</KineticText>
+            <SplitText mode="chars" trigger="intro">The market,</SplitText>
             <br />
-            <KineticText className="text-primary" delay={0.1}>rendered live.</KineticText>
+            <SplitText mode="chars" trigger="intro" delay={0.18} className="text-primary">
+              rendered live.
+            </SplitText>
           </h1>
 
           <div className="mt-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
@@ -136,7 +152,7 @@ export function LandingView() {
 
       {/* ─── Live ticker ─── */}
       <div className="border-y border-border py-5">
-        <Marquee speed={42}>
+        <Marquee speed={70}>
           {(quotes.length ? quotes : Array.from({ length: 8 }, () => null)).map((q, i) => (
             <span key={q?.symbol ?? i} className="flex shrink-0 items-center gap-3 text-lg">
               <span className="font-medium">{q?.symbol ?? '—'}</span>
@@ -152,81 +168,184 @@ export function LandingView() {
         </Marquee>
       </div>
 
-      {/* ─── Chapters ─── */}
-      <section className="mx-auto max-w-[1600px] px-6 py-24 md:px-12 md:py-36">
-        {CHAPTERS.map((c, i) => (
-          <div
-            key={c.n}
-            className={cn(
-              'grid items-start gap-8 border-t border-border py-14 md:grid-cols-12 md:gap-12 md:py-20',
-              i === 0 && 'border-t-0 pt-0'
-            )}
-          >
-            <Reveal className="md:col-span-2">
-              <span className="figure text-[clamp(2.5rem,5vw,4.5rem)] text-primary/25">{c.n}</span>
-            </Reveal>
+      {/* ─── Manifesto ─── */}
+      <section className="mx-auto max-w-[1600px] px-6 py-28 md:px-12 md:py-44">
+        <Reveal>
+          <span className="eyebrow">The premise</span>
+        </Reveal>
+        <HighlightText className="mt-10 max-w-5xl text-[clamp(1.6rem,4.4vw,3.4rem)] font-medium leading-[1.18] tracking-[-0.03em]">
+          Most trading products hand you a number and ask you to trust it. Veltrix hands you the arithmetic — every indicator vote, every backtest residual, every confidence figure it actually measured rather than claimed.
+        </HighlightText>
+      </section>
 
-            <div className="md:col-span-6">
-              <KineticText
+      {/* ─── Scroll-drawn live chart ─── */}
+      <section className="relative overflow-hidden border-y border-border bg-card/40 py-24 md:py-32">
+        <div className="mx-auto max-w-[1600px] px-6 md:px-12">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <span className="eyebrow">Live feed</span>
+              <SplitText
                 as="h2"
-                className="block text-[clamp(1.75rem,3.6vw,3.1rem)] font-semibold leading-[1.06] tracking-[-0.03em]"
+                className="mt-4 block text-[clamp(1.6rem,3.4vw,2.9rem)] font-semibold leading-[1.06] tracking-[-0.03em]"
               >
-                {c.title}
-              </KineticText>
-              <Reveal delay={0.08}>
-                <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-muted-foreground">{c.body}</p>
+                Bitcoin, last 30 days
+              </SplitText>
+            </div>
+            {btc && (
+              <div className="text-right">
+                <span className="figure figure-lg block text-primary">{fmtPrice(btc.price)}</span>
+                <span className={cn('tnum text-sm', btc.change >= 0 ? 'text-success' : 'text-destructive')}>
+                  {btc.change >= 0 ? '+' : ''}{btc.change.toFixed(2)}% · 24h
+                </span>
+              </div>
+            )}
+          </div>
+
+          <DrawChart series={series} className="mt-14 h-[260px] w-full md:h-[340px]" />
+
+          <p className="mt-8 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Drawn from the same CoinGecko OHLC response the terminal uses. Nothing here is
+            illustrative — scroll and the line traces the actual closes.
+          </p>
+        </div>
+      </section>
+
+      {/* ─── Chapters, with a sticky index rail ─── */}
+      <section className="mx-auto max-w-[1600px] px-6 py-24 md:px-12 md:py-36">
+        <div className="grid gap-12 md:grid-cols-12">
+          {/* Index rail */}
+          <aside className="hidden md:col-span-3 md:block">
+            <div className="sticky top-32">
+              <span className="eyebrow">Contents</span>
+              <ul className="mt-6 space-y-4">
+                {CHAPTERS.map((c, i) => (
+                  <li key={c.n} className="flex items-baseline gap-4">
+                    <span
+                      className={cn(
+                        'figure text-sm transition-colors duration-500',
+                        i === active ? 'text-primary' : 'text-muted-foreground/45'
+                      )}
+                    >
+                      {c.n}
+                    </span>
+                    <span
+                      className={cn(
+                        'text-sm leading-snug transition-colors duration-500',
+                        i === active ? 'text-foreground' : 'text-muted-foreground/45'
+                      )}
+                    >
+                      {c.title}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 h-px w-full bg-border">
+                <div
+                  className="h-full bg-primary transition-[width] duration-500 ease-out"
+                  style={{ width: `${((active + 1) / CHAPTERS.length) * 100}%` }}
+                />
+              </div>
+            </div>
+          </aside>
+
+          <div className="md:col-span-9">
+            {CHAPTERS.map((c, i) => (
+              <div
+                key={c.n}
+                data-chapter
+                className={cn(
+                  'grid items-start gap-8 border-t border-border py-14 md:grid-cols-9 md:gap-10 md:py-24',
+                  i === 0 && 'border-t-0 pt-0 md:pt-0'
+                )}
+              >
+                <div className="md:col-span-5">
+                  <span className="figure block text-[clamp(2.5rem,5vw,4.5rem)] text-primary/20">{c.n}</span>
+                  <SplitText
+                    as="h2"
+                    className="mt-5 block text-[clamp(1.75rem,3.6vw,3.1rem)] font-semibold leading-[1.06] tracking-[-0.03em]"
+                  >
+                    {c.title}
+                  </SplitText>
+                  <Reveal delay={0.08}>
+                    <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-muted-foreground">{c.body}</p>
+                  </Reveal>
+                </div>
+
+                <div className="md:col-span-4">
+                  <Parallax speed={0.07}>
+                    <Reveal delay={0.12}>
+                      <div className="card-surface p-8">
+                        <CountUp
+                          to={c.stat.to}
+                          prefix={c.stat.to === 100000 ? '$' : ''}
+                          className="figure figure-xl block text-primary"
+                        />
+                        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.stat.label}</p>
+                      </div>
+                    </Reveal>
+                  </Parallax>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Capabilities — pinned horizontal on desktop ─── */}
+      <section className="relative">
+        <PinnedGallery
+          heading={
+            <div className="mx-auto mb-14 w-full max-w-[1600px] px-6 md:px-12">
+              <Reveal>
+                <span className="eyebrow">What&rsquo;s inside</span>
+                <h2 className="mt-4 max-w-2xl text-[clamp(1.75rem,3.6vw,3.1rem)] font-semibold leading-[1.06] tracking-[-0.03em]">
+                  Six things it actually does
+                </h2>
               </Reveal>
             </div>
-
-            <Reveal className="md:col-span-4" delay={0.14}>
-              <div className="card-surface p-7">
-                <CountUp
-                  to={c.stat.to}
-                  prefix={c.stat.to === 100000 ? '$' : ''}
-                  className="figure figure-xl block text-primary"
-                />
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.stat.label}</p>
+          }
+        >
+          <div className="w-6 shrink-0 md:w-12" aria-hidden="true" />
+          {CAPABILITIES.map((c, i) => (
+            <article
+              key={c.k}
+              className="card-surface flex w-[290px] shrink-0 flex-col justify-between p-8 md:w-[400px] lg:h-[380px]"
+            >
+              <span className="figure text-[2.75rem] text-primary/20">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <div>
+                <h3 className="text-2xl font-semibold leading-snug">{c.k}</h3>
+                <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{c.v}</p>
               </div>
-            </Reveal>
-          </div>
-        ))}
+            </article>
+          ))}
+          <div className="w-6 shrink-0 md:w-12" aria-hidden="true" />
+        </PinnedGallery>
       </section>
 
-      {/* ─── Capabilities (pinned horizontal on desktop) ─── */}
-      <section className="overflow-hidden py-10">
-        <div className="mx-auto max-w-[1600px] px-6 md:px-12">
-          <Reveal>
-            <span className="eyebrow">What's inside</span>
-            <h2 className="mt-4 max-w-2xl text-[clamp(1.75rem,3.6vw,3.1rem)] font-semibold leading-[1.06] tracking-[-0.03em]">
-              Six things it actually does
-            </h2>
-          </Reveal>
-        </div>
-
-        <div className="mt-12 px-6 md:px-12">
-          <HorizontalScroller>
-            {CAPABILITIES.map((c, i) => (
-              <article
-                key={c.k}
-                className="card-surface flex w-[300px] shrink-0 flex-col p-7 md:w-[380px]"
-              >
-                <span className="eyebrow text-primary">{String(i + 1).padStart(2, '0')}</span>
-                <h3 className="mt-5 text-xl font-semibold leading-snug">{c.k}</h3>
-                <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{c.v}</p>
-              </article>
-            ))}
-          </HorizontalScroller>
-        </div>
-      </section>
+      {/* ─── Outlined display marquee ─── */}
+      <div className="overflow-hidden border-y border-border py-10 md:py-16">
+        <Marquee speed={90} reverse>
+          {Array.from({ length: 4 }, (_, i) => (
+            <span
+              key={i}
+              className="text-stroke shrink-0 whitespace-nowrap text-[clamp(3rem,10vw,9rem)] font-semibold leading-none tracking-[-0.04em]"
+            >
+              No invented metrics&nbsp;&nbsp;·&nbsp;&nbsp;
+            </span>
+          ))}
+        </Marquee>
+      </div>
 
       {/* ─── CTA ─── */}
       <section className="mx-auto max-w-[1600px] px-6 py-24 md:px-12 md:py-36">
         <Reveal>
           <div className="card-surface relative overflow-hidden p-10 md:p-20">
             <h2 className="max-w-3xl text-[clamp(2rem,5.5vw,4.5rem)] font-semibold leading-[0.98] tracking-[-0.04em]">
-              <KineticText>No invented metrics.</KineticText>
+              <SplitText mode="chars">No invented metrics.</SplitText>
               <br />
-              <KineticText className="text-primary" delay={0.08}>Ever.</KineticText>
+              <SplitText mode="chars" delay={0.12} className="text-primary">Ever.</SplitText>
             </h2>
             <p className="mt-8 max-w-xl text-[17px] leading-relaxed text-muted-foreground">
               Forecast accuracy is whatever the backtest measured — including the times it lands

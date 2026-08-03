@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { HeroCanvas } from '@/components/hero-canvas'
-import { Cursor, Grain, KineticText } from '@/components/motion/primitives'
+import { Cursor, Grain, SplitText } from '@/components/motion/primitives'
 import { fmtPrice } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 
@@ -47,9 +47,9 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 
         <div className="relative p-12">
           <h2 className="text-[clamp(2rem,3.4vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.035em]">
-            <KineticText>Every number,</KineticText>
+            <SplitText mode="chars">Every number,</SplitText>
             <br />
-            <KineticText className="text-primary" delay={0.08}>traceable.</KineticText>
+            <SplitText mode="chars" className="text-primary" delay={0.12}>traceable.</SplitText>
           </h2>
 
           <ul className="mt-9 space-y-3">

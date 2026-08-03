@@ -39,7 +39,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`bg-background ${inter.variable} ${jbMono.variable}`}>
-      <body className="font-sans antialiased overflow-x-hidden">
+      {/* overflow-x:clip, not hidden — `hidden` makes body a scroll container,
+          which silently breaks `position: sticky` on descendants. */}
+      <body className="font-sans antialiased [overflow-x:clip]">
         <AppProviders>{children}</AppProviders>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

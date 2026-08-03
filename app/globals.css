@@ -214,13 +214,24 @@ main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surf
 .chip-down { background: rgba(248,113,113,0.12); color: var(--destructive); }
 .chip-flat { background: var(--elevated); color: var(--muted-foreground); }
 
-/* ─── Marquee ─── */
+/* ─── Marquee ───
+   Driven by GSAP (so it can react to scroll velocity); this keyframe is the
+   no-JS / reduced-motion resting state only. */
 @keyframes marquee {
   from { transform: translateX(0); }
   to   { transform: translateX(-100%); }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-marquee] { animation: none !important; }
+}
+
+/* Outlined display type — used for the oversized section marquee. */
+.text-stroke {
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--foreground) 26%, transparent);
+}
+@supports not (-webkit-text-stroke: 1px black) {
+  .text-stroke { color: color-mix(in srgb, var(--foreground) 22%, transparent); }
 }
 
 /* ─── Price flash ─── */
