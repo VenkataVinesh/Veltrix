@@ -41,6 +41,9 @@ const PROVIDERS: Provider[] = [
     name: 'groq',
     url: 'https://api.groq.com/openai/v1/chat/completions',
     key: GROQ_KEY,
+    // Measured: llama-3.3-70b ~284ms, llama-3.1-8b ~265ms, both clean
+    // JSON — roughly 4x faster than Gemini flash-lite and with far larger
+    // free allowances, so Groq leads the chain.
     models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
   },
   {

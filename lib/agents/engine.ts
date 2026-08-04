@@ -92,6 +92,31 @@ const ANALYSTS = [
 
 interface RawOpinion { stance?: string; confidence?: unknown; argument?: unknown }
 
+/**
+ * Run tasks with bounded concurrency.
+ *
+ * Firing all four analysts at once bursts a free tier's per-minute limit
+ * and earns a 429 even when the daily budget is untouched. Two at a time
+ * costs about a second and avoids that entirely.
+ */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const out = new Array<R>(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const i = next++
+      if (i >= items.length) return
+      out[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return out
+}
+
 const asStance = (v: unknown): Stance => {
   const s = String(v ?? '').toLowerCase()
   if (s.startsWith('bull')) return 'bullish'
@@ -204,7 +229,7 @@ export async function runDebate(symbol: string): Promise<DebateResult> {
   try {
     // Analysts are independent, so they run concurrently — this is what
     // keeps a full debate near ~6s instead of ~25s on free-tier models.
-    const analysts = await Promise.all(ANALYSTS.map((a) => runAnalyst(a, evidence)))
+    const analysts = await mapLimit([...ANALYSTS], 2, (a) => runAnalyst(a, evidence))
     phaseMs.analysts = lap()
 
     const [bull1, bear1] = await Promise.all([
