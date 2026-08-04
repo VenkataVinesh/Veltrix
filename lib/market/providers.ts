@@ -35,7 +35,14 @@ export interface UnavailableReason {
 }
 
 const FINNHUB = process.env.FINNHUB_API_KEY?.trim() || ''
-export const hasEquityProvider = () => FINNHUB.length > 0
+const TWELVEDATA = process.env.TWELVEDATA_API_KEY?.trim() || ''
+const ALPHAVANTAGE = process.env.ALPHAVANTAGE_API_KEY?.trim() || ''
+
+/** Quotes need only Finnhub; history needs Twelve Data (or the AV fallback). */
+export const hasEquityProvider = () =>
+  FINNHUB.length > 0 || TWELVEDATA.length > 0
+export const hasEquityHistory = () =>
+  TWELVEDATA.length > 0 || ALPHAVANTAGE.length > 0
 
 /* ── CoinGecko ─────────────────────────────────────────────────── */
 
@@ -117,60 +124,182 @@ export const EQUITY_NAMES: Record<string, string> = {
 
 export const EQUITY_SYMBOLS = Object.keys(EQUITY_NAMES)
 
+/** Twelve Data quote — the fallback when there's no Finnhub key. */
+async function twelveDataQuote(symbol: string): Promise<Quote | null> {
+  try {
+    const res = await fetch(
+      `${TD}/quote?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVEDATA}`,
+      { next: { revalidate: 60 } }
+    )
+    if (!res.ok) return null
+    const d = (await res.json()) as {
+      status?: string; close?: string; percent_change?: string; name?: string
+    }
+    const price = parseFloat(d.close ?? '')
+    if (d.status === 'error' || !Number.isFinite(price)) return null
+    return {
+      symbol,
+      name: EQUITY_NAMES[symbol] ?? d.name ?? symbol,
+      price,
+      change: parseFloat(d.percent_change ?? '0') || 0,
+      assetType: 'equity',
+      source: 'twelvedata',
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function equityQuotes(symbols: string[]): Promise<Quote[] | UnavailableReason> {
   if (!hasEquityProvider()) {
-    return { unavailable: true, reason: 'FINNHUB_API_KEY not configured' }
+    return {
+      unavailable: true,
+      reason: 'No equity provider configured (set FINNHUB_API_KEY or TWELVEDATA_API_KEY)',
+    }
   }
   const out = await Promise.all(
     symbols.map(async (raw): Promise<Quote | null> => {
       const symbol = raw.toUpperCase()
-      try {
-        const res = await fetch(`${FH}/quote?symbol=${symbol}&token=${FINNHUB}`, {
-          next: { revalidate: 20 },
-        })
-        if (!res.ok) return null
-        const d = (await res.json()) as { c: number; dp: number }
-        if (!d?.c) return null
-        return {
-          symbol,
-          name: EQUITY_NAMES[symbol] ?? symbol,
-          price: d.c,
-          change: d.dp ?? 0,
-          assetType: 'equity',
-          source: 'finnhub',
+      if (FINNHUB) {
+        try {
+          const res = await fetch(`${FH}/quote?symbol=${symbol}&token=${FINNHUB}`, {
+            next: { revalidate: 20 },
+          })
+          if (res.ok) {
+            const d = (await res.json()) as { c: number; dp: number }
+            if (d?.c) {
+              return {
+                symbol,
+                name: EQUITY_NAMES[symbol] ?? symbol,
+                price: d.c,
+                change: d.dp ?? 0,
+                assetType: 'equity',
+                source: 'finnhub',
+              }
+            }
+          }
+        } catch {
+          /* fall through to Twelve Data */
         }
-      } catch {
-        return null
       }
+      return TWELVEDATA ? twelveDataQuote(symbol) : null
     })
   )
   return out.filter((q): q is Quote => q !== null)
+}
+
+/* ── Twelve Data (equity history) ──────────────────────────────
+   Finnhub's /stock/candle is premium-only — a free key returns
+   403 "You don't have access to this resource". Verified against a
+   live key, so equity history comes from Twelve Data instead, with
+   Alpha Vantage as a daily-bar fallback when the 800/day budget runs
+   out. Finnhub is still the best free *quote* source, so it keeps
+   that job. */
+
+const TD = 'https://api.twelvedata.com'
+
+/** Pick the finest interval that keeps the series under ~5000 points. */
+function tdInterval(days: number): { interval: string; perDay: number } {
+  if (days <= 2) return { interval: '5min', perDay: 78 }
+  if (days <= 10) return { interval: '30min', perDay: 13 }
+  if (days <= 60) return { interval: '1h', perDay: 7 }
+  return { interval: '1day', perDay: 1 }
+}
+
+async function twelveDataCandles(
+  symbol: string,
+  days: number
+): Promise<Candle[] | UnavailableReason> {
+  const { interval, perDay } = tdInterval(days)
+  const outputsize = Math.min(5000, Math.max(30, Math.ceil(days * perDay)))
+  const res = await fetch(
+    `${TD}/time_series?symbol=${encodeURIComponent(symbol.toUpperCase())}` +
+      `&interval=${interval}&outputsize=${outputsize}&apikey=${TWELVEDATA}`,
+    { next: { revalidate: 300 } }
+  )
+  if (!res.ok) return { unavailable: true, reason: `Twelve Data ${res.status}` }
+
+  const d = (await res.json()) as {
+    status?: string
+    message?: string
+    values?: { datetime: string; open: string; high: string; low: string; close: string; volume?: string }[]
+  }
+  // Twelve Data reports errors with HTTP 200 and a status field.
+  if (d.status === 'error' || !d.values?.length) {
+    return { unavailable: true, reason: d.message || 'Twelve Data returned no series' }
+  }
+
+  // Newest-first from the API; charts and indicators both want chronological.
+  return d.values
+    .map((v) => ({
+      t: Math.floor(new Date(v.datetime.replace(' ', 'T') + 'Z').getTime() / 1000),
+      o: parseFloat(v.open),
+      h: parseFloat(v.high),
+      l: parseFloat(v.low),
+      c: parseFloat(v.close),
+      v: v.volume ? parseFloat(v.volume) : 0,
+    }))
+    .filter((c) => Number.isFinite(c.c) && Number.isFinite(c.t))
+    .sort((a, b) => a.t - b.t)
+}
+
+async function alphaVantageCandles(
+  symbol: string,
+  days: number
+): Promise<Candle[] | UnavailableReason> {
+  const res = await fetch(
+    `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY` +
+      `&symbol=${encodeURIComponent(symbol.toUpperCase())}` +
+      `&outputsize=${days > 100 ? 'full' : 'compact'}&apikey=${ALPHAVANTAGE}`,
+    { next: { revalidate: 3600 } }
+  )
+  if (!res.ok) return { unavailable: true, reason: `Alpha Vantage ${res.status}` }
+  const d = (await res.json()) as Record<string, unknown>
+  const series = d['Time Series (Daily)'] as
+    | Record<string, Record<string, string>>
+    | undefined
+  // Free tier signals exhaustion via a "Note"/"Information" field, not an error code.
+  if (!series) {
+    const note = (d.Note || d.Information || d['Error Message']) as string | undefined
+    return { unavailable: true, reason: note || 'Alpha Vantage returned no series' }
+  }
+  const cutoff = Date.now() / 1000 - days * 86400
+  return Object.entries(series)
+    .map(([date, row]) => ({
+      t: Math.floor(new Date(`${date}T00:00:00Z`).getTime() / 1000),
+      o: parseFloat(row['1. open']),
+      h: parseFloat(row['2. high']),
+      l: parseFloat(row['3. low']),
+      c: parseFloat(row['4. close']),
+      v: parseFloat(row['5. volume'] ?? '0'),
+    }))
+    .filter((c) => Number.isFinite(c.c) && c.t >= cutoff)
+    .sort((a, b) => a.t - b.t)
 }
 
 export async function equityCandles(
   symbol: string,
   days: number
 ): Promise<Candle[] | UnavailableReason> {
-  if (!hasEquityProvider()) {
-    return { unavailable: true, reason: 'FINNHUB_API_KEY not configured' }
+  if (!hasEquityHistory()) {
+    return {
+      unavailable: true,
+      reason: 'No equity history provider configured (set TWELVEDATA_API_KEY)',
+    }
   }
-  const to = Math.floor(Date.now() / 1000)
-  const from = to - days * 86400
-  const res = await fetch(
-    `${FH}/stock/candle?symbol=${symbol.toUpperCase()}&resolution=D&from=${from}&to=${to}&token=${FINNHUB}`,
-    { next: { revalidate: 300 } }
+
+  if (TWELVEDATA) {
+    const td = await twelveDataCandles(symbol, days).catch(
+      (e): UnavailableReason => ({ unavailable: true, reason: String(e) })
+    )
+    if (Array.isArray(td) && td.length) return td
+    if (!ALPHAVANTAGE) return td
+    // Budget exhausted or symbol unsupported — fall through to the daily fallback.
+  }
+
+  return alphaVantageCandles(symbol, days).catch(
+    (e): UnavailableReason => ({ unavailable: true, reason: String(e) })
   )
-  if (!res.ok) return { unavailable: true, reason: `Finnhub ${res.status}` }
-  const d = (await res.json()) as {
-    s: string; t?: number[]; o?: number[]; h?: number[]; l?: number[]; c?: number[]; v?: number[]
-  }
-  if (d.s !== 'ok' || !d.t?.length) {
-    return { unavailable: true, reason: 'no candle data returned' }
-  }
-  return d.t.map((t, i) => ({
-    t,
-    o: d.o![i], h: d.h![i], l: d.l![i], c: d.c![i], v: d.v?.[i] ?? 0,
-  }))
 }
 
 /* ── Unified helpers ───────────────────────────────────────────── */
