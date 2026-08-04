@@ -30,6 +30,8 @@ export interface AgentOpinion {
   argument: string
   model: string
   ms: number
+  /** Debate round this argument belongs to (researchers only). */
+  round?: number
 }
 
 export interface DebateResult {
@@ -54,7 +56,7 @@ export interface DebateResult {
   degraded: boolean
   degradedReason?: string
   /** Wall time per stage — the debate must fit Vercel's 60s ceiling. */
-  phaseMs: { evidence: number; analysts: number; researchers: number; trader: number; risk: number }
+  phaseMs: { evidence: number; analysts: number; researchers: number; rebuttal: number; trader: number; risk: number }
   totalMs: number
 }
 
@@ -127,18 +129,28 @@ async function runAnalyst(
 async function runResearcher(
   side: 'bull' | 'bear',
   evidence: string,
-  analysts: AgentOpinion[]
+  analysts: AgentOpinion[],
+  round = 1,
+  opponent?: AgentOpinion
 ): Promise<AgentOpinion> {
   const digest = analysts
     .map((o) => `- ${o.label}: ${o.stance} (${o.confidence.toFixed(2)}) — ${o.argument}`)
     .join('\n')
+
+  // Round two hands over the opposing case so the rebuttal is a real
+  // response rather than a restatement, and explicitly licenses lowering
+  // confidence — a debate nobody can lose is theatre, not analysis.
+  const rebuttal = opponent
+    ? `\n\nOPPOSING CASE TO REBUT (${opponent.label}, confidence ${opponent.confidence.toFixed(2)}):\n"${opponent.argument}"\n` +
+      'Rebut its single weakest claim specifically. If it has genuinely damaged your position, lower your confidence to reflect that. Do not restate round one.'
+    : ''
 
   const { value, model, ms } = await askJSON<RawOpinion>(
     `You are the ${side === 'bull' ? 'BULLISH' : 'BEARISH'} researcher. Argue that side as strongly as the evidence honestly allows — ` +
       'but if the evidence genuinely does not support your side, say so and report low confidence. ' +
       'Attack the weakest point in the opposing case.\n' +
       `${JSON_RULE}\nSchema: {"stance":"${side}ish","confidence":0.0-1.0,"argument":"under 70 words"}`,
-    `${evidence}\n\nANALYST FINDINGS:\n${digest}`,
+    `${evidence}\n\nANALYST FINDINGS:\n${digest}${rebuttal}`,
     { maxTokens: 340, temperature: 0.5 }
   )
   return {
@@ -149,12 +161,13 @@ async function runResearcher(
     argument: str(value.argument, 600) || 'No argument returned.',
     model,
     ms,
+    round,
   }
 }
 
 export async function runDebate(symbol: string): Promise<DebateResult> {
   const started = Date.now()
-  const phaseMs = { evidence: 0, analysts: 0, researchers: 0, trader: 0, risk: 0 }
+  const phaseMs = { evidence: 0, analysts: 0, researchers: 0, rebuttal: 0, trader: 0, risk: 0 }
   const lap = () => { const n = Date.now(); const d = n - mark; mark = n; return d }
   let mark = started
 
@@ -194,15 +207,33 @@ export async function runDebate(symbol: string): Promise<DebateResult> {
     const analysts = await Promise.all(ANALYSTS.map((a) => runAnalyst(a, evidence)))
     phaseMs.analysts = lap()
 
-    const [bull, bear] = await Promise.all([
-      runResearcher('bull', evidence, analysts),
-      runResearcher('bear', evidence, analysts),
+    const [bull1, bear1] = await Promise.all([
+      runResearcher('bull', evidence, analysts, 1),
+      runResearcher('bear', evidence, analysts, 1),
     ])
     phaseMs.researchers = lap()
 
+    // Round two: each side must engage the other's actual case. A debate
+    // where neither side can move is theatre, so researchers are told they
+    // may lower their own confidence if genuinely damaged.
+    const [bull2, bear2] = await Promise.all([
+      runResearcher('bull', evidence, analysts, 2, bear1),
+      runResearcher('bear', evidence, analysts, 2, bull1),
+    ])
+    phaseMs.rebuttal = lap()
+
+    // How far each side's conviction moved once challenged is itself a
+    // signal, so the trader sees the drift rather than just the endpoint.
+    const drift = (a: AgentOpinion, b: AgentOpinion) => {
+      const d = b.confidence - a.confidence
+      return d === 0 ? 'unchanged' : `${d > 0 ? 'up' : 'down'} ${Math.abs(d).toFixed(2)} after rebuttal`
+    }
+
     const debateDigest =
-      `BULL (${bull.confidence.toFixed(2)}): ${bull.argument}\n` +
-      `BEAR (${bear.confidence.toFixed(2)}): ${bear.argument}`
+      `BULL r1 (${bull1.confidence.toFixed(2)}): ${bull1.argument}\n` +
+      `BULL r2 (${bull2.confidence.toFixed(2)}, ${drift(bull1, bull2)}): ${bull2.argument}\n` +
+      `BEAR r1 (${bear1.confidence.toFixed(2)}): ${bear1.argument}\n` +
+      `BEAR r2 (${bear2.confidence.toFixed(2)}, ${drift(bear1, bear2)}): ${bear2.argument}`
 
     const traderRes = await askJSON<{ action?: string; confidence?: unknown; rationale?: unknown }>(
       'You are the trader. Resolve the bull/bear debate into one action. ' +
@@ -236,7 +267,7 @@ export async function runDebate(symbol: string): Promise<DebateResult> {
     return {
       ...base,
       analysts,
-      researchers: [bull, bear],
+      researchers: [bull1, bear1, bull2, bear2],
       trader: {
         action,
         confidence: num(traderRes.value.confidence, 0, 1, 0.5),

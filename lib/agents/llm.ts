@@ -1,31 +1,69 @@
 /**
- * OpenRouter client.
+ * LLM client for the agent debate.
  *
- * Free-tier models are the target, which shapes every decision here:
- * they rate-limit (429) without warning, occasionally return an empty
- * `content` because the whole answer went into a reasoning field, and
- * they wrap JSON in prose or code fences. All three are handled rather
- * than assumed away.
+ * Free tiers are the target, which shapes every decision here: they
+ * rate-limit (429) without warning, sometimes return empty `content`
+ * because the whole answer went into a reasoning field, and they wrap
+ * JSON in prose or code fences. All three are handled, not assumed away.
  *
- * Measured on the free tier, one structured call:
+ * Measured on OpenRouter's free tier, one structured call:
  *   nemotron-3-super-120b-a12b  ~1.3s   clean JSON
  *   gpt-oss-20b                 ~10.2s  empty content
  *   gemma-4-31b-it              429 rate limited
- * Hence the primary/fallback ordering below.
  */
 
-const OR = 'https://openrouter.ai/api/v1/chat/completions'
+/**
+ * Providers are stacked because free quotas are per-provider, and a single
+ * one is not enough to run a product. Measured: OpenRouter's free tier is
+ * capped at 50 model requests PER DAY
+ * ("free-models-per-day", X-RateLimit-Limit: 50). One debate costs 10
+ * calls, so OpenRouter alone supports five debates a day in total.
+ *
+ * Groq and Gemini both expose OpenAI-compatible endpoints and bill against
+ * their own separate free quotas, so adding either multiplies capacity at
+ * no cost. Whichever keys exist are used, in order.
+ */
+interface Provider {
+  name: string
+  url: string
+  key: string
+  models: string[]
+}
 
-const KEY = process.env.OPENROUTER_API_KEY?.trim() || ''
-export const hasLLM = () => KEY.length > 0
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY?.trim() || ''
+const GROQ_KEY = process.env.GROQ_API_KEY?.trim() || ''
+const GEMINI_KEY = process.env.GEMINI_API_KEY?.trim() || ''
 
-/** Primary first; each fallback is tried only if the one before it fails.
- *  Kept short on purpose — the whole debate has to finish inside Vercel's
- *  60s function ceiling, and every dead model costs a full timeout. */
-const MODELS = [
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'nvidia/nemotron-3-nano-30b-a3b:free',
-] as const
+const PROVIDERS: Provider[] = [
+  // Groq first when present: far higher free daily allowance and the
+  // fastest inference of the three.
+  {
+    name: 'groq',
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    key: GROQ_KEY,
+    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+  },
+  {
+    name: 'gemini',
+    url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    key: GEMINI_KEY,
+    models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'],
+  },
+  {
+    name: 'openrouter',
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+    key: OPENROUTER_KEY,
+    models: [
+      'nvidia/nemotron-3-super-120b-a12b:free',
+      'nvidia/nemotron-3-nano-30b-a3b:free',
+    ],
+  },
+].filter((p) => p.key.length > 0)
+
+export const hasLLM = () => PROVIDERS.length > 0
+
+/** Flattened attempt order: every model of every configured provider. */
+const ATTEMPTS = PROVIDERS.flatMap((p) => p.models.map((m) => ({ p, model: m })))
 
 export class LLMUnavailable extends Error {}
 
@@ -68,23 +106,27 @@ export async function askJSON<T>(
   user: string,
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}
 ): Promise<{ value: T; model: string; ms: number }> {
-  if (!KEY) throw new LLMUnavailable('OPENROUTER_API_KEY not configured')
+  if (!ATTEMPTS.length) {
+    throw new LLMUnavailable(
+      'No LLM provider configured (set GROQ_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY)'
+    )
+  }
 
-  const { maxTokens = 400, temperature = 0.35, timeoutMs = 11_000 } = opts
+  const { maxTokens = 400, temperature = 0.35, timeoutMs = 9_000 } = opts
   const failures: string[] = []
 
-  for (const model of MODELS) {
+  for (const { p, model } of ATTEMPTS) {
     const started = Date.now()
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), timeoutMs)
     try {
-      const res = await fetch(OR, {
+      const res = await fetch(p.url, {
         method: 'POST',
         signal: ctrl.signal,
         headers: {
-          Authorization: `Bearer ${KEY}`,
+          Authorization: `Bearer ${p.key}`,
           'Content-Type': 'application/json',
-          // Optional OpenRouter attribution headers.
+          // Optional OpenRouter attribution headers; harmless elsewhere.
           'HTTP-Referer': 'https://github.com/VenkataVinesh/Veltrix',
           'X-Title': 'Veltrix',
         },
@@ -102,31 +144,32 @@ export async function askJSON<T>(
           // measured: a 200-token cap produced no JSON at all. We want a
           // short structured answer, not a chain of thought, and turning
           // it off is both faster and far more reliably parseable.
-          reasoning: { enabled: false },
+          // OpenRouter extension; Groq and Gemini reject unknown fields.
+          ...(p.name === 'openrouter' ? { reasoning: { enabled: false } } : {}),
         }),
         cache: 'no-store',
       })
 
-      if (!res.ok) { failures.push(`${model}: HTTP ${res.status}`); continue }
+      if (!res.ok) { failures.push(`${p.name}/${model}: HTTP ${res.status}`); continue }
 
       const data = (await res.json()) as ChatResponse
-      if (data.error) { failures.push(`${model}: ${data.error.message}`); continue }
+      if (data.error) { failures.push(`${p.name}/${model}: ${data.error.message}`); continue }
 
       // Some reasoning models leave `content` empty and put everything in
       // `reasoning`; fall back to that before giving up on the model.
       const msg = data.choices?.[0]?.message
       const text = (msg?.content || msg?.reasoning || '').trim()
-      if (!text) { failures.push(`${model}: empty content`); continue }
+      if (!text) { failures.push(`${p.name}/${model}: empty content`); continue }
 
-      return { value: extractJSON(text) as T, model, ms: Date.now() - started }
+      return { value: extractJSON(text) as T, model: `${p.name}/${model}`, ms: Date.now() - started }
     } catch (e) {
-      failures.push(`${model}: ${e instanceof Error ? e.message : String(e)}`)
+      failures.push(`${p.name}/${model}: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       clearTimeout(timer)
     }
   }
 
-  throw new LLMUnavailable(`all models failed — ${failures.join('; ')}`)
+  throw new LLMUnavailable(`all providers failed — ${failures.join('; ')}`)
 }
 
 export const num = (v: unknown, lo: number, hi: number, dflt: number): number => {
