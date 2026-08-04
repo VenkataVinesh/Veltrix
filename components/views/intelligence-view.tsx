@@ -10,9 +10,15 @@ import { api } from '@/lib/api'
 import { Card, Eyebrow, EmptyState, Skeleton, fmtUsd, fmtPrice } from '@/components/ui/primitives'
 import { ForecastChart } from '@/components/forecast-chart'
 import { cn } from '@/lib/utils'
+import { InfoTip, GlossaryPanel } from '@/components/ui/glossary'
+import { CRYPTO_IDS, EQUITY_NAMES } from '@/lib/market/providers'
 import type { DebateResult, Stance } from '@/lib/agents/engine'
 
-const SYMBOLS = ['BTC', 'ETH', 'SOL', 'AAPL', 'NVDA', 'MSFT', 'SPY', 'TSLA', 'GOOGL', 'AMZN']
+// Quick chips for the handful people actually reach for; the full 79-symbol
+// universe lives in the dropdown beside them.
+const QUICK = ['BTC', 'ETH', 'SOL', 'AAPL', 'NVDA', 'MSFT', 'SPY', 'TSLA']
+const CRYPTO_LIST = Object.entries(CRYPTO_IDS).map(([s, m]) => [s, m.name] as const)
+const EQUITY_LIST = Object.entries(EQUITY_NAMES) as [string, string][]
 
 const stanceTone = (s: Stance) =>
   s === 'bullish' ? 'text-success' : s === 'bearish' ? 'text-destructive' : 'text-muted-foreground'
@@ -75,8 +81,8 @@ export function IntelligenceView() {
           <Eyebrow>Intelligence</Eyebrow>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Forecast &amp; agent debate</h1>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {SYMBOLS.map((sym) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {QUICK.map((sym) => (
             <button
               key={sym}
               onClick={() => pick(sym)}
@@ -88,6 +94,19 @@ export function IntelligenceView() {
               {sym}
             </button>
           ))}
+          <select
+            aria-label="Choose any symbol"
+            value={symbol}
+            onChange={(e) => pick(e.target.value)}
+            className="rounded-full bg-elevated px-3.5 py-1.5 text-sm font-medium text-foreground"
+          >
+            <optgroup label={`Crypto (${CRYPTO_LIST.length})`}>
+              {CRYPTO_LIST.map(([s2, n]) => <option key={s2} value={s2}>{s2} — {n}</option>)}
+            </optgroup>
+            <optgroup label={`Stocks & ETFs (${EQUITY_LIST.length})`}>
+              {EQUITY_LIST.map(([s2, n]) => <option key={s2} value={s2}>{s2} — {n}</option>)}
+            </optgroup>
+          </select>
         </div>
       </div>
 
@@ -109,9 +128,23 @@ export function IntelligenceView() {
           </div>
           {f && !f.unavailable && (
             <div className="text-right">
-              <Eyebrow>Directional hit-rate</Eyebrow>
-              <p className="figure figure-md mt-2 text-primary">{(f.hitRate * 100).toFixed(0)}%</p>
-              <p className="text-xs text-muted-foreground">measured over {f.backtest.nTest} held-out steps</p>
+              <span className="inline-flex items-center gap-1.5"><Eyebrow>Directional hit-rate</Eyebrow><InfoTip term="hitRate" /></span>
+              {f.hitRate === null ? (
+                <>
+                  <p className="figure figure-md mt-2 text-muted-foreground">n/a</p>
+                  <p className="text-xs text-muted-foreground">too few directional calls to measure</p>
+                </>
+              ) : (
+                <>
+                  <p className={cn('figure figure-md mt-2', f.hitRate > 0.55 ? 'text-success' : f.hitRate < 0.45 ? 'text-destructive' : 'text-muted-foreground')}>
+                    {(f.hitRate * 100).toFixed(0)}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    measured over {f.backtest.nTest} held-out steps
+                    {Math.abs(f.hitRate - 0.5) < 0.05 && ' · no edge'}
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -129,20 +162,20 @@ export function IntelligenceView() {
           <>
             <ForecastChart history={history} path={f.path} className="mt-6 h-[280px] w-full md:h-[320px]" />
             <div className="grid gap-px overflow-hidden border-t border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { k: 'Ensemble RMSE', v: f.backtest.rmse.toFixed(4) },
-                { k: 'Ensemble MAE', v: f.backtest.mae.toFixed(4) },
-                { k: 'Out-of-sample steps', v: String(f.backtest.nTest) },
-                { k: 'Band', v: '95% interval' },
-              ].map((m) => (
+              {([
+                { k: 'Ensemble RMSE', v: f.backtest.rmse.toFixed(4), t: 'rmse' },
+                { k: 'Ensemble MAE', v: f.backtest.mae.toFixed(4), t: 'mae' },
+                { k: 'Out-of-sample steps', v: String(f.backtest.nTest), t: 'outOfSample' },
+                { k: 'Band', v: '95% interval', t: 'band' },
+              ] as const).map((m) => (
                 <div key={m.k} className="bg-card p-5">
-                  <Eyebrow>{m.k}</Eyebrow>
+                  <span className="inline-flex items-center gap-1.5"><Eyebrow>{m.k}</Eyebrow><InfoTip term={m.t} /></span>
                   <p className="figure figure-md mt-2">{m.v}</p>
                 </div>
               ))}
             </div>
             <div className="border-t border-border p-6">
-              <Eyebrow>Model weights — earned by inverse RMSE on the backtest</Eyebrow>
+              <span className="inline-flex items-center gap-1.5"><Eyebrow>Model weights — earned by inverse RMSE on the backtest</Eyebrow><InfoTip term="weights" /></span>
               <div className="mt-4 space-y-3">
                 {Object.entries(f.weights).map(([name, w]) => (
                   <div key={name}>
@@ -165,7 +198,7 @@ export function IntelligenceView() {
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <Eyebrow>Composite signal — deterministic, no model involved</Eyebrow>
+              <span className="inline-flex items-center gap-1.5"><Eyebrow>Composite signal — deterministic, no model involved</Eyebrow><InfoTip term="momentum" /></span>
               <div className="mt-2 flex items-baseline gap-3">
                 <span className={cn('figure figure-lg', actionTone(s.signal))}>{s.signal}</span>
                 <span className="tnum text-sm text-muted-foreground">momentum {s.momentum.toFixed(2)}</span>
@@ -248,7 +281,7 @@ export function IntelligenceView() {
                 </p>
               </div>
               <div className="panel-inset p-5">
-                <Eyebrow>Risk manager</Eyebrow>
+                <span className="inline-flex items-center gap-1.5"><Eyebrow>Risk manager</Eyebrow><InfoTip term="positionSize" /></span>
                 <p className="mt-2 flex items-center gap-2">
                   {debate.risk!.approved
                     ? <ShieldCheck className="h-5 w-5 text-success" />
@@ -260,7 +293,7 @@ export function IntelligenceView() {
                 <p className="mt-2 text-xs text-muted-foreground">{debate.risk!.verdict}</p>
               </div>
               <div className="panel-inset p-5">
-                <Eyebrow>Agrees with the arithmetic?</Eyebrow>
+                <span className="inline-flex items-center gap-1.5"><Eyebrow>Agrees with the arithmetic?</Eyebrow><InfoTip term="agreesWithQuant" /></span>
                 <p className={cn('figure figure-md mt-2', debate.agreesWithQuant ? 'text-success' : 'text-destructive')}>
                   {debate.agreesWithQuant === null ? 'n/a' : debate.agreesWithQuant ? 'Yes' : 'No'}
                 </p>
@@ -351,6 +384,22 @@ export function IntelligenceView() {
             </p>
           </div>
         )}
+      </Card>
+
+      {/* ── Reference ── */}
+      <Card>
+        <Eyebrow>What these terms mean</Eyebrow>
+        <p className="mt-2 mb-6 text-sm text-muted-foreground">
+          Every figure on this page in plain English, including how not to over-read it.
+        </p>
+        <GlossaryPanel
+          terms={[
+            'hitRate', 'band', 'rmse', 'mae', 'outOfSample', 'weights',
+            'driftEwma', 'ar', 'naive', 'momentum', 'rsi', 'macd',
+            'bollinger', 'trendStack', 'supportResistance', 'volatility',
+            'agreesWithQuant', 'positionSize',
+          ]}
+        />
       </Card>
     </div>
   )

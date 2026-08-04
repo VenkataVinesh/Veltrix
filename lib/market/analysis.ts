@@ -3,8 +3,9 @@
  *
  * Design rule carried over from the Python version: every number shown to a
  * user must be traceable. The composite signal exposes each indicator's vote
- * and weight, and forecast confidence is a *measured* walk-forward hit-rate —
- * if the model has no edge, it reports ~50% rather than inventing certainty.
+ * and weight, and forecast confidence is a *measured* walk-forward hit-rate of
+ * the weighted ensemble. When it genuinely cannot be measured it is null, not
+ * 0.5 — "unmeasurable" and "coin flip" are different claims.
  */
 
 import type { Candle } from './providers'
@@ -302,7 +303,59 @@ function oneStep(prices: number[], model: ModelName): number {
   return coefs ? lastPrice * Math.exp(arForecast(r, 1, coefs)[0]) : lastPrice
 }
 
-/** Real out-of-sample walk-forward backtest — the only source of confidence. */
+/**
+ * Walk-forward over the ENSEMBLE — the thing the product actually reports.
+ *
+ * Previously the headline hit-rate came from whichever single model held
+ * the most weight. That was broken twice over: the naive model predicts
+ * last price exactly, so `sign(pred - last)` is always 0 and every sample
+ * was skipped by the direction guard, leaving its hit-rate NaN; and naive
+ * usually wins on RMSE, so it usually *was* the reported model. The NaN
+ * then fell through to a literal 0.5, which is why every symbol showed
+ * "50%" while the UI claimed it was measured over N held-out steps.
+ *
+ * Backtesting the weighted combination fixes both: it is what the chart
+ * draws, and it has a real direction to be right or wrong about.
+ */
+function walkForwardEnsemble(
+  prices: number[],
+  weights: Record<ModelName, number>,
+  steps = 40
+): { mae: number; rmse: number; hitRate: number | null; nTest: number } {
+  const usable = Math.min(steps, prices.length - (AR_ORDER + 10))
+  if (usable < 5) return { mae: NaN, rmse: NaN, hitRate: null, nTest: 0 }
+
+  const errs: number[] = []
+  const hits: number[] = []
+  for (let i = prices.length - usable; i < prices.length; i++) {
+    const train = prices.slice(0, i)
+    const last = train[train.length - 1]
+    const actual = prices[i]
+
+    const pred =
+      oneStep(train, 'drift_ewma') * weights.drift_ewma +
+      oneStep(train, 'ar') * weights.ar +
+      last * weights.naive
+
+    errs.push(actual - pred)
+    const pd = Math.sign(pred - last)
+    const ad = Math.sign(actual - last)
+    // A flat prediction expresses no direction — it is neither right nor
+    // wrong, so it is excluded rather than counted as a coin flip.
+    if (pd !== 0 && ad !== 0) hits.push(pd === ad ? 1 : 0)
+  }
+
+  return {
+    mae: errs.reduce((a, b) => a + Math.abs(b), 0) / errs.length,
+    rmse: Math.sqrt(errs.reduce((a, b) => a + b * b, 0) / errs.length),
+    // Null, not 0.5 — "we could not measure it" and "it is a coin flip"
+    // are different claims and must not render identically.
+    hitRate: hits.length >= 5 ? hits.reduce((a, b) => a + b, 0) / hits.length : null,
+    nTest: usable,
+  }
+}
+
+/** Per-model walk-forward, used only to earn the ensemble weights. */
 function walkForward(prices: number[], model: ModelName, steps = 40) {
   const usable = Math.min(steps, prices.length - (AR_ORDER + 10))
   if (usable < 5) return { mae: NaN, rmse: NaN, hitRate: NaN, nTest: 0 }
@@ -330,8 +383,9 @@ export interface ForecastResult {
   currentPrice: number
   path: { t: number; mid: number; lo: number; hi: number }[]
   expectedReturnPct: number
-  hitRate: number
-  backtest: { mae: number; rmse: number; hitRate: number; nTest: number; method: string }
+  /** Null when it could not be measured — never silently 0.5. */
+  hitRate: number | null
+  backtest: { mae: number; rmse: number; hitRate: number | null; nTest: number; method: string }
   weights: Record<string, number>
   methodology: string
 }
@@ -389,9 +443,11 @@ export function computeForecast(
     }
   })
 
-  const best = models.reduce((a, b) => (w[a] >= w[b] ? a : b))
-  const bm = metrics[best]
+  // Score the blend that actually gets drawn, not whichever single model
+  // happened to hold the most weight.
+  const bm = walkForwardEnsemble(prices, w)
   const finalMid = path[path.length - 1].mid
+  const hr = bm.hitRate === null ? null : +bm.hitRate.toFixed(3)
 
   return {
     symbol,
@@ -399,13 +455,13 @@ export function computeForecast(
     currentPrice: +lastPrice.toFixed(2),
     path,
     expectedReturnPct: +(((finalMid - lastPrice) / lastPrice) * 100).toFixed(2),
-    hitRate: Number.isFinite(bm.hitRate) ? +bm.hitRate.toFixed(3) : 0.5,
+    hitRate: hr,
     backtest: {
       mae: Number.isFinite(bm.mae) ? +bm.mae.toFixed(2) : 0,
       rmse: Number.isFinite(bm.rmse) ? +bm.rmse.toFixed(2) : 0,
-      hitRate: Number.isFinite(bm.hitRate) ? +bm.hitRate.toFixed(3) : 0.5,
+      hitRate: hr,
       nTest: bm.nTest,
-      method: 'walk-forward one-step, out-of-sample',
+      method: 'walk-forward one-step on the weighted ensemble, out-of-sample',
     },
     weights: Object.fromEntries(models.map((m) => [m, +w[m].toFixed(3)])),
     methodology:

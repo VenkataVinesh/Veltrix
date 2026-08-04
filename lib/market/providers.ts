@@ -60,6 +60,21 @@ export const CRYPTO_IDS: Record<string, { id: string; name: string }> = {
   AVAX: { id: 'avalanche-2', name: 'Avalanche' },
   LINK: { id: 'chainlink', name: 'Chainlink' },
   MATIC: { id: 'matic-network', name: 'Polygon' },
+  DOT: { id: 'polkadot', name: 'Polkadot' },
+  LTC: { id: 'litecoin', name: 'Litecoin' },
+  ATOM: { id: 'cosmos', name: 'Cosmos' },
+  UNI: { id: 'uniswap', name: 'Uniswap' },
+  NEAR: { id: 'near', name: 'NEAR Protocol' },
+  APT: { id: 'aptos', name: 'Aptos' },
+  ARB: { id: 'arbitrum', name: 'Arbitrum' },
+  OP: { id: 'optimism', name: 'Optimism' },
+  FIL: { id: 'filecoin', name: 'Filecoin' },
+  ICP: { id: 'internet-computer', name: 'Internet Computer' },
+  ETC: { id: 'ethereum-classic', name: 'Ethereum Classic' },
+  XLM: { id: 'stellar', name: 'Stellar' },
+  AAVE: { id: 'aave', name: 'Aave' },
+  INJ: { id: 'injective-protocol', name: 'Injective' },
+  SUI: { id: 'sui', name: 'Sui' },
 }
 
 export const CRYPTO_SYMBOLS = Object.keys(CRYPTO_IDS)
@@ -134,9 +149,28 @@ export async function cryptoCandles(symbol: string, days: number): Promise<Candl
 const FH = 'https://finnhub.io/api/v1'
 
 export const EQUITY_NAMES: Record<string, string> = {
-  SPY: 'S&P 500 ETF', QQQ: 'Nasdaq 100 ETF', AAPL: 'Apple', MSFT: 'Microsoft',
-  NVDA: 'NVIDIA', AMZN: 'Amazon', META: 'Meta', TSLA: 'Tesla',
-  GOOGL: 'Alphabet', JPM: 'JPMorgan',
+  // Index & sector ETFs
+  SPY: 'S&P 500 ETF', QQQ: 'Nasdaq 100 ETF', DIA: 'Dow Jones ETF',
+  IWM: 'Russell 2000 ETF', VTI: 'Total Market ETF', XLF: 'Financials ETF',
+  XLE: 'Energy ETF', XLK: 'Technology ETF', SMH: 'Semiconductor ETF',
+  GLD: 'Gold ETF',
+  // Mega-cap tech
+  AAPL: 'Apple', MSFT: 'Microsoft', NVDA: 'NVIDIA', AMZN: 'Amazon',
+  META: 'Meta', GOOGL: 'Alphabet', TSLA: 'Tesla', AVGO: 'Broadcom',
+  AMD: 'AMD', INTC: 'Intel', CRM: 'Salesforce', ORCL: 'Oracle',
+  ADBE: 'Adobe', NFLX: 'Netflix', CSCO: 'Cisco', QCOM: 'Qualcomm',
+  TXN: 'Texas Instruments', MU: 'Micron', PLTR: 'Palantir', UBER: 'Uber',
+  // Financials
+  JPM: 'JPMorgan', BAC: 'Bank of America', GS: 'Goldman Sachs',
+  MS: 'Morgan Stanley', V: 'Visa', MA: 'Mastercard', BRKB: 'Berkshire B',
+  // Health, consumer, industrial, energy
+  JNJ: 'Johnson & Johnson', UNH: 'UnitedHealth', LLY: 'Eli Lilly',
+  PFE: 'Pfizer', MRK: 'Merck', ABBV: 'AbbVie',
+  WMT: 'Walmart', COST: 'Costco', HD: 'Home Depot', MCD: "McDonald's",
+  NKE: 'Nike', SBUX: 'Starbucks', PG: 'Procter & Gamble', KO: 'Coca-Cola',
+  PEP: 'PepsiCo', DIS: 'Disney',
+  BA: 'Boeing', CAT: 'Caterpillar', GE: 'GE Aerospace', LMT: 'Lockheed Martin',
+  XOM: 'Exxon Mobil', CVX: 'Chevron',
 }
 
 export const EQUITY_SYMBOLS = Object.keys(EQUITY_NAMES)
