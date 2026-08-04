@@ -2,6 +2,7 @@
 
 import type { SignalResult, ForecastResult } from '@/lib/market/analysis'
 import type { Quote, Candle } from '@/lib/market/providers'
+import type { DebateResult } from '@/lib/agents/engine'
 
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url)
@@ -55,6 +56,13 @@ export const api = {
   forecast: (symbol: string, horizon = 14) =>
     get<ForecastResult & { unavailable?: boolean; reason?: string }>(
       `/api/forecast?symbol=${encodeURIComponent(symbol)}&horizon=${horizon}`
+    ),
+
+  /** Multi-agent debate. Slow by nature (several LLM round-trips), so
+   *  callers should treat it as an on-demand action, not a page load. */
+  agents: (symbol: string) =>
+    get<DebateResult & { cached?: boolean; error?: string }>(
+      `/api/agents?symbol=${encodeURIComponent(symbol)}`
     ),
 
   portfolio: () => get<PortfolioResponse>('/api/portfolio'),

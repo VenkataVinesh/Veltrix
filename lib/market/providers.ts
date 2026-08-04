@@ -98,18 +98,35 @@ const CG_OHLC_DAYS = [1, 7, 14, 30, 90, 180, 365]
 const snapDays = (d: number) =>
   CG_OHLC_DAYS.reduce((best, v) => (Math.abs(v - d) < Math.abs(best - d) ? v : best), CG_OHLC_DAYS[0])
 
-export async function cryptoCandles(symbol: string, days: number): Promise<Candle[]> {
-  const meta = CRYPTO_IDS[symbol.toUpperCase()]
-  if (!meta) return []
-
+async function fetchCryptoOhlc(id: string, days: number): Promise<Candle[]> {
   const res = await fetch(
-    `${CG}/coins/${meta.id}/ohlc?vs_currency=usd&days=${snapDays(days)}`,
+    `${CG}/coins/${id}/ohlc?vs_currency=usd&days=${snapDays(days)}`,
     { next: { revalidate: 60 } }
   )
   if (!res.ok) throw new Error(`CoinGecko OHLC ${res.status}`)
   // [[ms, o, h, l, c], ...] — CoinGecko's OHLC endpoint carries no volume.
   const raw = (await res.json()) as number[][]
+  if (!Array.isArray(raw)) return []
   return raw.map(([ms, o, h, l, c]) => ({ t: Math.floor(ms / 1000), o, h, l, c, v: 0 }))
+}
+
+/** Longest window CoinGecko's keyless tier actually serves OHLC for. */
+export const CRYPTO_MAX_DAYS = 30
+
+export async function cryptoCandles(symbol: string, days: number): Promise<Candle[]> {
+  const meta = CRYPTO_IDS[symbol.toUpperCase()]
+  if (!meta) return []
+
+  const rows = await fetchCryptoOhlc(meta.id, days)
+  if (rows.length || days <= CRYPTO_MAX_DAYS) return rows
+
+  // The public tier returns 200 with an EMPTY array for windows past 30
+  // days rather than an error, so a long request silently yields nothing
+  // and every caller reports "insufficient history". Fall back to the
+  // widest window that actually returns data — 30d is ~180 four-hour
+  // bars, far more usable than the sparse daily candles longer windows
+  // used to give.
+  return fetchCryptoOhlc(meta.id, CRYPTO_MAX_DAYS)
 }
 
 /* ── Finnhub (equities) ────────────────────────────────────────── */
