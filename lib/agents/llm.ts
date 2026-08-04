@@ -47,7 +47,11 @@ const PROVIDERS: Provider[] = [
     name: 'gemini',
     url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     key: GEMINI_KEY,
-    models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'],
+    // Measured against a fresh key: flash-lite-latest ~1.2s clean JSON,
+    // flash-latest ~3.0s. gemini-2.5-flash 404s ("no longer available to
+    // new users") and gemini-2.0-flash reports zero quota, so neither is
+    // listed — model aliases, not pinned versions, survive deprecation.
+    models: ['gemini-flash-lite-latest', 'gemini-flash-latest'],
   },
   {
     name: 'openrouter',
@@ -94,6 +98,14 @@ function extractJSON(raw: string): unknown {
 interface ChatResponse {
   choices?: { message?: { content?: string | null; reasoning?: string | null } }[]
   error?: { message?: string; code?: number }
+}
+
+/** Gemini returns errors as a single-element ARRAY rather than an object.
+ *  Unwrapped here so a real error is reported as such instead of being
+ *  mistaken for an empty completion. */
+function unwrap(body: unknown): ChatResponse {
+  const b = Array.isArray(body) ? body[0] : body
+  return (b ?? {}) as ChatResponse
 }
 
 /**
@@ -150,9 +162,11 @@ export async function askJSON<T>(
         cache: 'no-store',
       })
 
-      if (!res.ok) { failures.push(`${p.name}/${model}: HTTP ${res.status}`); continue }
-
-      const data = (await res.json()) as ChatResponse
+      const data = unwrap(await res.json().catch(() => ({})))
+      if (!res.ok) {
+        failures.push(`${p.name}/${model}: HTTP ${res.status}${data.error?.message ? ` — ${data.error.message.slice(0, 90)}` : ''}`)
+        continue
+      }
       if (data.error) { failures.push(`${p.name}/${model}: ${data.error.message}`); continue }
 
       // Some reasoning models leave `content` empty and put everything in
