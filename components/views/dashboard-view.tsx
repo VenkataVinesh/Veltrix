@@ -6,6 +6,7 @@ import { ArrowUpRight, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PriceChart } from '@/components/price-chart'
 import { Card, Eyebrow, DeltaChip, Stat, EmptyState, fmtUsd, fmtPrice } from '@/components/ui/primitives'
+import { InfoTip, termForComponent } from '@/components/ui/glossary'
 import { cn } from '@/lib/utils'
 
 export function DashboardView() {
@@ -45,22 +46,26 @@ export function DashboardView() {
           <>
             <Stat
               label="Portfolio value"
+              term="portfolioValue"
               value={fmtUsd(equity, 2)}
               sub={`${positions.length} position${positions.length === 1 ? '' : 's'} · cash ${fmtUsd(portfolio?.cash ?? 0, 0)}`}
             />
             <Stat
               label="Unrealised P&L"
+              term="unrealisedPnl"
               value={`${pnl >= 0 ? '+' : ''}${fmtUsd(pnl, 2)}`}
               delta={positions.length ? pnlPct : undefined}
               sub={positions.length ? 'marked to live prices' : 'add a position to track'}
             />
             <Stat
               label="Invested"
+              term="invested"
               value={fmtUsd(portfolio?.invested ?? 0, 2)}
               sub={`market value ${fmtUsd(portfolio?.marketValue ?? 0, 2)}`}
             />
             <Stat
               label="BTC composite"
+              term="compositeSignal"
               value={signal?.signal ?? '—'}
               sub={signal ? `momentum ${signal.momentum >= 0 ? '+' : ''}${signal.momentum.toFixed(2)}` : 'computing…'}
             />
@@ -98,7 +103,10 @@ export function DashboardView() {
         {/* Signal breakdown — every vote visible */}
         <Card>
           <div className="flex items-baseline justify-between">
-            <Eyebrow>Signal breakdown · BTC</Eyebrow>
+            <span className="inline-flex items-center gap-1.5">
+              <Eyebrow>Signal breakdown · BTC</Eyebrow>
+              <InfoTip term="compositeSignal" />
+            </span>
             {signal?.signal && (
               <span className={cn(
                 'chip',
@@ -115,7 +123,12 @@ export function DashboardView() {
                 {signal.components.map((c) => (
                   <div key={c.name} className="flex items-center justify-between gap-3" title={c.detail}>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{c.name}</p>
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <span className="truncate">{c.name}</span>
+                        {termForComponent(c.name) && (
+                          <InfoTip term={termForComponent(c.name)!} />
+                        )}
+                      </p>
                       <p className="truncate text-xs text-muted-foreground">{c.detail}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

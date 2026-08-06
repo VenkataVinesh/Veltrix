@@ -93,6 +93,11 @@ export const GLOSSARY: Record<string, { title: string; body: string }> = {
     body:
       'Recent price floor and ceiling. Support is where buying has previously appeared, resistance where selling has. Price sitting right at either is fragile — it can bounce or break.',
   },
+  volume: {
+    title: 'Volume vs 20-bar average',
+    body:
+      'How much changed hands compared with the recent norm. A move on heavy volume has more participants behind it than the same move on thin volume, so it is treated as more meaningful. Crypto candles from CoinGecko carry no volume, so this indicator abstains there rather than guessing.',
+  },
   volatility: {
     title: 'Volatility',
     body:
@@ -108,10 +113,61 @@ export const GLOSSARY: Record<string, { title: string; body: string }> = {
     body:
       'What percentage of the portfolio the risk manager will allow for this idea. Zero means vetoed. This is paper trading — no real order is ever placed.',
   },
+
+  /* Portfolio arithmetic. Plain definitions, but worth stating: these are
+     the numbers people most often assume they already understand. */
+  portfolioValue: {
+    title: 'Portfolio value',
+    body:
+      'Everything you hold, priced at the latest quote, plus uninvested cash. It moves whenever the market moves, without you doing anything. Paper only — no real money is involved.',
+  },
+  unrealisedPnl: {
+    title: 'Unrealised P&L',
+    body:
+      'Profit or loss you are sitting on but have not taken. "Unrealised" is the important word: it exists only on paper and changes with every tick until you sell. A gain here is not money you have — it is money you currently could have.',
+  },
+  invested: {
+    title: 'Invested (cost basis)',
+    body:
+      'The total you originally paid for what you hold, ignoring what it is worth now. Comparing this against market value is exactly what produces unrealised P&L.',
+  },
+  marketValue: {
+    title: 'Market value',
+    body:
+      'What your holdings would fetch at the current price. Cost basis is what you paid; this is what it is worth today.',
+  },
+  compositeSignal: {
+    title: 'Composite signal',
+    body:
+      'A BUY / HOLD / SELL summary produced by adding up the indicator votes below it — RSI, MACD, Bollinger position and trend alignment — each with a stated weight. It is arithmetic on price history, fully deterministic, with no model and no prediction. It describes what the chart has already done, not what it will do next.',
+  },
+  paperTrading: {
+    title: 'Paper trading',
+    body:
+      'Simulated trading against real live prices. Positions, cost basis and P&L are all tracked honestly, but no broker is connected and no order ever leaves the browser. You cannot lose or make real money here.',
+  },
 }
 
+export type GlossaryTerm = keyof typeof GLOSSARY
+
+/**
+ * Signal component names as emitted by computeSignal, mapped to their
+ * definitions. Keyed on the prefix so the parameter suffix — "(14)",
+ * "(12,26,9)" — can change without silently dropping the explanation.
+ */
+const COMPONENT_TERMS: [string, GlossaryTerm][] = [
+  ['RSI', 'rsi'],
+  ['MACD', 'macd'],
+  ['Bollinger', 'bollinger'],
+  ['Trend', 'trendStack'],
+  ['Volume', 'volume'],
+]
+
+export const termForComponent = (name: string): GlossaryTerm | null =>
+  COMPONENT_TERMS.find(([prefix]) => name.startsWith(prefix))?.[1] ?? null
+
 /** Inline "?" that reveals a definition. Keyboard reachable, not hover-only. */
-export function InfoTip({ term, className }: { term: keyof typeof GLOSSARY; className?: string }) {
+export function InfoTip({ term, className }: { term: GlossaryTerm; className?: string }) {
   const g = GLOSSARY[term]
   if (!g) return null
   return <Explain title={g.title} body={g.body} className={className} />

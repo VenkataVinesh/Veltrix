@@ -52,14 +52,15 @@ export function PortfolioView() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Total equity" value={fmtUsd(data?.equity ?? 0)} sub={`cash ${fmtUsd(data?.cash ?? 0, 0)}`} />
+        <Stat label="Total equity" term="portfolioValue" value={fmtUsd(data?.equity ?? 0)} sub={`cash ${fmtUsd(data?.cash ?? 0, 0)}`} />
         <Stat
           label="Unrealised P&L"
+          term="unrealisedPnl"
           value={`${(data?.unrealisedPnl ?? 0) >= 0 ? '+' : ''}${fmtUsd(data?.unrealisedPnl ?? 0)}`}
           delta={positions.length ? data?.unrealisedPnlPct : undefined}
         />
-        <Stat label="Invested" value={fmtUsd(data?.invested ?? 0)} />
-        <Stat label="Market value" value={fmtUsd(data?.marketValue ?? 0)} sub={`${positions.length} position${positions.length === 1 ? '' : 's'}`} />
+        <Stat label="Invested" term="invested" value={fmtUsd(data?.invested ?? 0)} />
+        <Stat label="Market value" term="marketValue" value={fmtUsd(data?.marketValue ?? 0)} sub={`${positions.length} position${positions.length === 1 ? '' : 's'}`} />
       </div>
 
       <Card className="p-0">

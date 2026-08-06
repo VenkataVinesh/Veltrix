@@ -6,6 +6,7 @@ import { ArrowDownUp, Loader2, Check } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PriceChart, type Candle } from '@/components/price-chart'
 import { Card, Eyebrow, DeltaChip, EmptyState, fmtPrice, fmtUsd, fmtCompact } from '@/components/ui/primitives'
+import { InfoTip } from '@/components/ui/glossary'
 import { cn } from '@/lib/utils'
 
 const SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE']
@@ -64,7 +65,10 @@ export function TradeView() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Eyebrow>Trade</Eyebrow>
+          <span className="inline-flex items-center gap-1.5">
+            <Eyebrow>Paper trade</Eyebrow>
+            <InfoTip term="paperTrading" />
+          </span>
           <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">{symbol} / USD</h1>
         </div>
         <div className="flex flex-wrap gap-1.5">

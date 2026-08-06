@@ -406,9 +406,10 @@ export function IntelligenceView() {
         <GlossaryPanel
           terms={[
             'hitRate', 'band', 'garch', 'rmse', 'mae', 'outOfSample', 'weights',
-            'driftEwma', 'ar', 'naive', 'momentum', 'rsi', 'macd',
-            'bollinger', 'trendStack', 'supportResistance', 'volatility',
+            'driftEwma', 'ar', 'naive', 'compositeSignal', 'momentum', 'rsi', 'macd',
+            'bollinger', 'trendStack', 'volume', 'supportResistance', 'volatility',
             'agreesWithQuant', 'positionSize',
+            'portfolioValue', 'unrealisedPnl', 'invested', 'marketValue', 'paperTrading',
           ]}
         />
       </Card>

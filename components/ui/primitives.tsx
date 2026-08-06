@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { InfoTip, type GlossaryTerm } from '@/components/ui/glossary'
 
 /* Soft-rounded surface — the workhorse container. */
 export function Card({
@@ -26,17 +27,26 @@ export function DeltaChip({ value, suffix = '%' }: { value: number; suffix?: str
 
 /* Headline metric block. */
 export function Stat({
-  label, value, delta, sub, className,
+  label, value, delta, sub, className, term,
 }: {
   label: string
   value: string
   delta?: number
   sub?: string
   className?: string
+  /** Glossary key. Every headline number should be able to explain itself. */
+  term?: GlossaryTerm
 }) {
   return (
     <Card className={className}>
-      <Eyebrow>{label}</Eyebrow>
+      {term ? (
+        <span className="inline-flex items-center gap-1.5">
+          <Eyebrow>{label}</Eyebrow>
+          <InfoTip term={term} />
+        </span>
+      ) : (
+        <Eyebrow>{label}</Eyebrow>
+      )}
       <div className="mt-3 flex flex-wrap items-baseline gap-3">
         <span className="figure figure-lg">{value}</span>
         {delta !== undefined && <DeltaChip value={delta} />}
