@@ -317,3 +317,98 @@ main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surf
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ────────────────────────────────────────────────────────────────
+   Ambient background — authenticated app
+   Three blurred radial blobs drifting behind the cards. Animates
+   transform and opacity only, so it stays on the compositor: no
+   layout, no paint, no rAF loop competing with live market data.
+   The global prefers-reduced-motion block above freezes these.
+   ──────────────────────────────────────────────────────────────── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Isolate blob movement from the app content. Not `strict` — that adds
+     size containment, and this element is sized by its insets. */
+  contain: layout paint style;
+}
+
+.ambient-blob {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform, opacity;
+}
+
+.ambient-blob-1 {
+  width: 46vw; height: 46vw;
+  min-width: 340px; min-height: 340px;
+  top: -14vw; left: -8vw;
+  background: radial-gradient(circle, rgba(198,242,78,0.16), transparent 68%);
+  animation: ambient-drift-1 34s ease-in-out infinite;
+}
+
+.ambient-blob-2 {
+  width: 40vw; height: 40vw;
+  min-width: 300px; min-height: 300px;
+  bottom: -16vw; right: -10vw;
+  background: radial-gradient(circle, rgba(125,211,252,0.13), transparent 68%);
+  animation: ambient-drift-2 41s ease-in-out infinite;
+}
+
+.ambient-blob-3 {
+  width: 34vw; height: 34vw;
+  min-width: 260px; min-height: 260px;
+  top: 34%; left: 46%;
+  background: radial-gradient(circle, rgba(167,139,250,0.10), transparent 70%);
+  animation: ambient-drift-3 47s ease-in-out infinite;
+}
+
+@keyframes ambient-drift-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1);         opacity: 0.85; }
+  50%      { transform: translate3d(7vw, 5vh, 0) scale(1.14);  opacity: 1; }
+}
+@keyframes ambient-drift-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.08);      opacity: 0.75; }
+  50%      { transform: translate3d(-6vw, -6vh, 0) scale(0.94); opacity: 1; }
+}
+@keyframes ambient-drift-3 {
+  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(0.95); opacity: 0.5; }
+  50%      { transform: translate3d(-58%, -42%, 0) scale(1.16); opacity: 0.85; }
+}
+
+/* App content sits above the ambient layer. */
+.app-layer { position: relative; z-index: 1; }
+
+/* ── Page entrance ──────────────────────────────────────────────
+   Applied per route change. Short and small-amplitude: this fires
+   on every navigation, and anything longer than ~400ms starts to
+   feel like latency rather than polish. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+.page-enter > * {
+  animation: page-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Stagger the first few blocks; beyond that the delay would be felt. */
+.page-enter > *:nth-child(1) { animation-delay: 0.00s; }
+.page-enter > *:nth-child(2) { animation-delay: 0.05s; }
+.page-enter > *:nth-child(3) { animation-delay: 0.10s; }
+.page-enter > *:nth-child(4) { animation-delay: 0.15s; }
+.page-enter > *:nth-child(n+5) { animation-delay: 0.18s; }
+
+/* Cards lift very slightly toward the pointer. Border colour carries
+   most of the signal; the transform is there to make it feel physical. */
+.card-surface {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.22s ease;
+}
+@media (hover: hover) {
+  .card-surface:hover { transform: translateY(-2px); border-color: #2E3540; }
+}

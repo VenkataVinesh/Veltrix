@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { HeroCanvas } from '@/components/hero-canvas'
+import { Ambient } from '@/components/motion/ambient'
 import { Cursor, Grain, SplitText } from '@/components/motion/primitives'
 import { fmtPrice } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
@@ -31,6 +32,9 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[1.05fr_0.95fr]">
+      {/* Sits behind everything; the cinematic panel's own canvas and
+          gradient cover it, so in practice it lifts the form side. */}
+      <Ambient />
       <Cursor />
       <Grain />
 
@@ -80,7 +84,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Form side */}
-      <main className="flex min-h-screen items-center justify-center px-6 py-16 lg:min-h-0 lg:px-14">
+      <main className="app-layer flex min-h-screen items-center justify-center px-6 py-16 lg:min-h-0 lg:px-14">
         {children}
       </main>
     </div>

@@ -37,10 +37,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // The clip must be on <html>, not only <body>. The viewport takes its
+  // overflow from the root element, so a clip applied solely to body left the
+  // landing page's marquee genuinely horizontally scrollable — scrollTo(500, y)
+  // moved it. Kept as `clip` rather than `hidden` because `hidden` would make
+  // this a scroll container and silently break `position: sticky`.
   return (
-    <html lang="en" className={`bg-background ${inter.variable} ${jbMono.variable}`}>
-      {/* overflow-x:clip, not hidden — `hidden` makes body a scroll container,
-          which silently breaks `position: sticky` on descendants. */}
+    <html
+      lang="en"
+      className={`bg-background [overflow-x:clip] ${inter.variable} ${jbMono.variable}`}
+    >
       <body className="font-sans antialiased [overflow-x:clip]">
         <AppProviders>{children}</AppProviders>
         {process.env.NODE_ENV === 'production' && <Analytics />}

@@ -8,6 +8,8 @@ import {
   LogOut, Menu, X, type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { Ambient } from '@/components/motion/ambient'
+import { Grain } from '@/components/motion/primitives'
 import { cn } from '@/lib/utils'
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
@@ -53,8 +55,11 @@ export function AppShell({ email, children }: { email: string; children: React.R
 
   return (
     <div className="min-h-screen bg-background">
+      <Ambient />
+      <Grain />
+
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-border bg-sidebar px-4 py-6 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-border bg-sidebar/85 px-4 py-6 backdrop-blur-xl lg:flex">
         <Link href="/dashboard" className="mb-8 flex items-center gap-2.5 px-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary">
             <span className="text-sm font-bold text-primary-foreground">V</span>
@@ -105,8 +110,12 @@ export function AppShell({ email, children }: { email: string; children: React.R
         </div>
       )}
 
-      <main className="px-5 py-6 lg:pl-[calc(248px+2rem)] lg:pr-8 lg:py-8">
-        <div className="mx-auto max-w-[1400px]">{children}</div>
+      <main className="app-layer px-5 py-6 lg:pl-[calc(248px+2rem)] lg:pr-8 lg:py-8">
+        {/* Keyed on pathname so the entrance replays on every navigation
+            rather than only on first mount. */}
+        <div key={pathname} className="page-enter mx-auto max-w-[1400px]">
+          {children}
+        </div>
       </main>
     </div>
   )
