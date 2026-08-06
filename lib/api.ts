@@ -2,6 +2,7 @@
 
 import type { SignalResult, ForecastResult } from '@/lib/market/analysis'
 import type { Quote, Candle } from '@/lib/market/providers'
+import type { MacroReading } from '@/lib/market/macro'
 import type { DebateResult } from '@/lib/agents/engine'
 
 async function get<T>(url: string): Promise<T> {
@@ -64,6 +65,9 @@ export const api = {
     get<DebateResult & { cached?: boolean; error?: string }>(
       `/api/agents?symbol=${encodeURIComponent(symbol)}`
     ),
+
+  macro: () =>
+    get<{ series?: MacroReading[]; unavailable?: boolean; reason?: string }>('/api/macro'),
 
   portfolio: () => get<PortfolioResponse>('/api/portfolio'),
 

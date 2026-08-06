@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
-  LayoutDashboard, CandlestickChart, Coins, Brain, Briefcase, Settings,
+  LayoutDashboard, CandlestickChart, Coins, Brain, Landmark, Briefcase, Settings,
   LogOut, Menu, X, type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -15,6 +15,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/trade', label: 'Trade', icon: CandlestickChart },
   { href: '/markets', label: 'Markets', icon: Coins },
   { href: '/intelligence', label: 'Intelligence', icon: Brain },
+  { href: '/macro', label: 'Macro', icon: Landmark },
   { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]

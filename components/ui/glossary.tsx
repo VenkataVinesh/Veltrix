@@ -112,9 +112,20 @@ export const GLOSSARY: Record<string, { title: string; body: string }> = {
 
 /** Inline "?" that reveals a definition. Keyboard reachable, not hover-only. */
 export function InfoTip({ term, className }: { term: keyof typeof GLOSSARY; className?: string }) {
-  const [open, setOpen] = useState(false)
   const g = GLOSSARY[term]
   if (!g) return null
+  return <Explain title={g.title} body={g.body} className={className} />
+}
+
+/**
+ * The same affordance for text that does not live in the glossary — the
+ * macro series each carry their own note, which arrives with the data.
+ */
+export function Explain({
+  title, body, className,
+}: { title: string; body: string; className?: string }) {
+  const [open, setOpen] = useState(false)
+  const g = { title, body }
 
   return (
     <span className={cn('relative inline-flex', className)}>
