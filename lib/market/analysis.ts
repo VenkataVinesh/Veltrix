@@ -9,6 +9,10 @@
  */
 
 import type { Candle } from './providers'
+import {
+  buildDataset, latestFeatures, ridgeFit, ridgePredict, gbFit, gbPredict,
+  garchFit, garchPath, FEATURE_WARMUP,
+} from './ml'
 
 /* ── Indicators ────────────────────────────────────────────────── */
 
@@ -292,13 +296,44 @@ function arForecast(r: number[], horizon: number, coefs: number[]): number[] {
   return out
 }
 
-type ModelName = 'drift_ewma' | 'ar' | 'naive'
+export type ModelName = 'drift_ewma' | 'ar' | 'naive' | 'ridge' | 'gbm'
 
-function oneStep(prices: number[], model: ModelName): number {
+/**
+ * What actually ships.
+ *
+ * Ridge and gradient-boosted stumps are implemented in ./ml and are NOT here,
+ * because they were measured and did not earn a place. Against the same
+ * candles they moved ensemble RMSE by less than 0.5% (mixed sign), pulled
+ * every symbol's hit-rate toward a flat 50% — the shrinkage you get from
+ * averaging more near-random predictors, not skill — and cost ~4.5s per
+ * forecast against ~15ms, because each walk-forward step refits from scratch.
+ *
+ * They remain reachable through ForecastOptions.allow so the comparison is
+ * reproducible rather than a claim you have to take on faith. See
+ * docs/FORECAST-EVALUATION.md.
+ */
+export const BASELINE_MODELS: ModelName[] = ['drift_ewma', 'ar', 'naive']
+/** Baseline plus the learned models — benchmarking only. */
+export const ALL_MODELS: ModelName[] = [...BASELINE_MODELS, 'ridge', 'gbm']
+
+function oneStep(prices: number[], model: ModelName, vols: number[] = []): number {
   const lastPrice = prices[prices.length - 1]
   if (model === 'naive') return lastPrice
   const r = logReturns(prices)
   if (model === 'drift_ewma') return lastPrice * Math.exp(drift(r))
+
+  if (model === 'ridge' || model === 'gbm') {
+    const { X, y } = buildDataset(prices, vols)
+    const x = latestFeatures(prices, vols)
+    if (!x || X.length < 40) return lastPrice
+    if (model === 'ridge') {
+      const m = ridgeFit(X, y)
+      return m ? lastPrice * Math.exp(ridgePredict(m, x)) : lastPrice
+    }
+    const m = gbFit(X, y)
+    return m ? lastPrice * Math.exp(gbPredict(m, x)) : lastPrice
+  }
+
   const coefs = fitAR(r)
   return coefs ? lastPrice * Math.exp(arForecast(r, 1, coefs)[0]) : lastPrice
 }
@@ -320,10 +355,11 @@ function oneStep(prices: number[], model: ModelName): number {
 function walkForwardEnsemble(
   prices: number[],
   weights: Record<ModelName, number>,
-  steps = 40
-): { mae: number; rmse: number; hitRate: number | null; nTest: number } {
+  steps = 40,
+  vols: number[] = []
+): { mae: number; rmse: number; hitRate: number | null; nTest: number; nDirectional: number; nCorrect: number } {
   const usable = Math.min(steps, prices.length - (AR_ORDER + 10))
-  if (usable < 5) return { mae: NaN, rmse: NaN, hitRate: null, nTest: 0 }
+  if (usable < 5) return { mae: NaN, rmse: NaN, hitRate: null, nTest: 0, nDirectional: 0, nCorrect: 0 }
 
   const errs: number[] = []
   const hits: number[] = []
@@ -332,10 +368,13 @@ function walkForwardEnsemble(
     const last = train[train.length - 1]
     const actual = prices[i]
 
+    const tv = vols.slice(0, i)
     const pred =
-      oneStep(train, 'drift_ewma') * weights.drift_ewma +
-      oneStep(train, 'ar') * weights.ar +
-      last * weights.naive
+      oneStep(train, 'drift_ewma', tv) * (weights.drift_ewma ?? 0) +
+      oneStep(train, 'ar', tv) * (weights.ar ?? 0) +
+      last * (weights.naive ?? 0) +
+      (weights.ridge ? oneStep(train, 'ridge', tv) * weights.ridge : 0) +
+      (weights.gbm ? oneStep(train, 'gbm', tv) * weights.gbm : 0)
 
     errs.push(actual - pred)
     const pd = Math.sign(pred - last)
@@ -352,18 +391,20 @@ function walkForwardEnsemble(
     // are different claims and must not render identically.
     hitRate: hits.length >= 5 ? hits.reduce((a, b) => a + b, 0) / hits.length : null,
     nTest: usable,
+    nDirectional: hits.length,
+    nCorrect: hits.reduce((a, b) => a + b, 0),
   }
 }
 
 /** Per-model walk-forward, used only to earn the ensemble weights. */
-function walkForward(prices: number[], model: ModelName, steps = 40) {
+function walkForward(prices: number[], model: ModelName, steps = 40, vols: number[] = []) {
   const usable = Math.min(steps, prices.length - (AR_ORDER + 10))
   if (usable < 5) return { mae: NaN, rmse: NaN, hitRate: NaN, nTest: 0 }
   const errs: number[] = [], hits: number[] = []
   for (let i = prices.length - usable; i < prices.length; i++) {
     const train = prices.slice(0, i)
     const actual = prices[i]
-    const pred = oneStep(train, model)
+    const pred = oneStep(train, model, vols.slice(0, i))
     errs.push(actual - pred)
     const pd = Math.sign(pred - train[train.length - 1])
     const ad = Math.sign(actual - train[train.length - 1])
@@ -385,22 +426,50 @@ export interface ForecastResult {
   expectedReturnPct: number
   /** Null when it could not be measured — never silently 0.5. */
   hitRate: number | null
-  backtest: { mae: number; rmse: number; hitRate: number | null; nTest: number; method: string }
+  backtest: {
+    mae: number
+    rmse: number
+    hitRate: number | null
+    nTest: number
+    /** Steps where the ensemble actually expressed a direction. */
+    nDirectional: number
+    nCorrect: number
+    method: string
+  }
   weights: Record<string, number>
   methodology: string
+}
+
+export interface ForecastOptions {
+  /** Restrict the candidate pool. Used to measure what each model actually adds. */
+  allow?: ModelName[]
+  /** Out-of-sample walk-forward window. Larger = slower but a tighter error bar. */
+  steps?: number
+  /** Force EWMA bands even where GARCH would fit — for calibration comparisons. */
+  noGarch?: boolean
 }
 
 export function computeForecast(
   symbol: string,
   candles: Candle[],
-  horizon = 14
+  horizon = 14,
+  opts: ForecastOptions = {}
 ): ForecastResult | null {
+  const allow = opts.allow ?? BASELINE_MODELS
+  const steps = opts.steps ?? 40
   const prices = candles.map((c) => c.c)
+  const vols = candles.map((c) => c.v)
   if (prices.length < AR_ORDER + 20) return null
 
   const lastPrice = prices[prices.length - 1]
   const lastT = candles[candles.length - 1].t
   const r = logReturns(prices)
+
+  // GARCH(1,1) where there is enough history, EWMA otherwise. Unlike EWMA,
+  // GARCH mean-reverts to a long-run variance, so a multi-day band stops
+  // inheriting whatever regime the last few bars happened to be in.
+  const garch = opts.noGarch ? null : garchFit(r)
+  const garchBand = garch ? garchPath(garch, horizon).cumulative : null
   const sigma = Math.max(ewmaSigma(r), 1e-6)
 
   const mu = drift(r)
@@ -419,9 +488,32 @@ export function computeForecast(
   }
   const naivePath = new Array(horizon).fill(lastPrice)
 
+  /* Recursive multi-step for the learned models: predict one bar, append
+     the implied price, rebuild features, repeat. Error compounds with
+     horizon — which is exactly what the widening band is there to say. */
+  const learnedPath = (model: 'ridge' | 'gbm'): number[] => {
+    const p = [...prices]
+    const v = [...vols]
+    const out: number[] = []
+    for (let h = 0; h < horizon; h++) {
+      const next = oneStep(p, model, v)
+      out.push(next)
+      p.push(next)
+      v.push(v[v.length - 1] ?? 0)
+    }
+    return out
+  }
+
+  const enoughForLearned = prices.length >= FEATURE_WARMUP + 60
+  const useLearned = enoughForLearned && (allow.includes('ridge') || allow.includes('gbm'))
+  const ridgePath = useLearned ? learnedPath('ridge') : new Array(horizon).fill(lastPrice)
+  const gbmPath = useLearned ? learnedPath('gbm') : new Array(horizon).fill(lastPrice)
+
   // Inverse-RMSE weights — a model only earns weight by predicting held-out data better
-  const models: ModelName[] = ['drift_ewma', 'ar', 'naive']
-  const metrics = Object.fromEntries(models.map((m) => [m, walkForward(prices, m)])) as Record<
+  const models: ModelName[] = (useLearned ? ALL_MODELS : BASELINE_MODELS).filter((m) =>
+    allow.includes(m)
+  )
+  const metrics = Object.fromEntries(models.map((m) => [m, walkForward(prices, m, steps, vols)])) as Record<
     ModelName,
     ReturnType<typeof walkForward>
   >
@@ -433,8 +525,13 @@ export function computeForecast(
   const w = Object.fromEntries(models.map((m, i) => [m, rawW[i] / wSum])) as Record<ModelName, number>
 
   const path = Array.from({ length: horizon }, (_, i) => {
-    const mid = driftPath[i] * w.drift_ewma + arPath[i] * w.ar + naivePath[i] * w.naive
-    const half = Z95 * sigma * Math.sqrt(i + 1)
+    const mid =
+      driftPath[i] * (w.drift_ewma ?? 0) +
+      arPath[i] * (w.ar ?? 0) +
+      naivePath[i] * (w.naive ?? 0) +
+      ridgePath[i] * (w.ridge ?? 0) +
+      gbmPath[i] * (w.gbm ?? 0)
+    const half = Z95 * (garchBand ? garchBand[i] : sigma * Math.sqrt(i + 1))
     return {
       t: lastT + (i + 1) * 86400,
       mid: +mid.toFixed(2),
@@ -445,7 +542,7 @@ export function computeForecast(
 
   // Score the blend that actually gets drawn, not whichever single model
   // happened to hold the most weight.
-  const bm = walkForwardEnsemble(prices, w)
+  const bm = walkForwardEnsemble(prices, w, steps, vols)
   const finalMid = path[path.length - 1].mid
   const hr = bm.hitRate === null ? null : +bm.hitRate.toFixed(3)
 
@@ -461,10 +558,14 @@ export function computeForecast(
       rmse: Number.isFinite(bm.rmse) ? +bm.rmse.toFixed(2) : 0,
       hitRate: hr,
       nTest: bm.nTest,
+      nDirectional: bm.nDirectional,
+      nCorrect: bm.nCorrect,
       method: 'walk-forward one-step on the weighted ensemble, out-of-sample',
     },
     weights: Object.fromEntries(models.map((m) => [m, +w[m].toFixed(3)])),
     methodology:
-      'Ensemble of geometric drift + EWMA volatility, AR(5) on log returns, and a random-walk baseline. Weights are inverse-RMSE from a walk-forward backtest. Bands are 95% intervals from EWMA sigma scaled by √horizon. A hit-rate near 50% means no directional edge — reported, not hidden.',
+      `Ensemble of geometric drift, AR(5) on log returns, and a random-walk baseline, weighted by inverse RMSE from a walk-forward backtest. In practice those three score so similarly that the weights land near a third each — no model dominates, and we show that rather than tuning until one appears to. Bands come from ${
+        garch ? 'a GARCH(1,1) fit by maximum likelihood' : 'EWMA volatility (history too short for GARCH)'
+      }; over 1,200 held-out 5-day tests the GARCH band caught 94.8% of outcomes against the 95% it claims, where the EWMA band it replaced caught only 91.7%. Direction is a different story: measured across 1,500 out-of-sample calls the hit-rate is ~50%, i.e. no edge. Ridge regression and gradient-boosted trees were implemented, measured, and left out for failing to beat this. Use the bands, not the midline.`,
   }
 }

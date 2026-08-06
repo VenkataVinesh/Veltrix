@@ -140,9 +140,20 @@ export function IntelligenceView() {
                     {(f.hitRate * 100).toFixed(0)}%
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    measured over {f.backtest.nTest} held-out steps
-                    {Math.abs(f.hitRate - 0.5) < 0.05 && ' · no edge'}
+                    {f.backtest.nCorrect}/{f.backtest.nDirectional} directional calls
+                    {' · ±'}
+                    {(196 * Math.sqrt(0.25 / Math.max(f.backtest.nDirectional, 1))).toFixed(0)}pp
+                    {' at 95%'}
                   </p>
+                  {/* A sample this small cannot resolve a real edge from noise,
+                      so say that outright instead of letting the headline
+                      number imply more precision than it has. */}
+                  {Math.abs(f.hitRate - 0.5) <
+                    1.96 * Math.sqrt(0.25 / Math.max(f.backtest.nDirectional, 1)) && (
+                    <p className="text-xs text-muted-foreground">
+                      not distinguishable from a coin flip
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -394,7 +405,7 @@ export function IntelligenceView() {
         </p>
         <GlossaryPanel
           terms={[
-            'hitRate', 'band', 'rmse', 'mae', 'outOfSample', 'weights',
+            'hitRate', 'band', 'garch', 'rmse', 'mae', 'outOfSample', 'weights',
             'driftEwma', 'ar', 'naive', 'momentum', 'rsi', 'macd',
             'bollinger', 'trendStack', 'supportResistance', 'volatility',
             'agreesWithQuant', 'positionSize',
