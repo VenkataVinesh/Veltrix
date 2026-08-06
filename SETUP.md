@@ -1,206 +1,103 @@
-# VELTRIX Local Development Setup Guide
+# Setup
 
-**Institutional AI Trading Platform**
+Veltrix is a single Next.js application. There is no separate backend service,
+no database to run locally, and nothing to install beyond Node.
 
-This guide helps you set up the VELTRIX platform locally for development and testing.
+> An earlier version of this project was a Next.js frontend against a FastAPI
+> backend with Postgres and Redis. That backend has been removed — its
+> responsibilities now live in Next route handlers under `app/api/` and in
+> Supabase. If you are following an older guide that mentions `uvicorn`,
+> port 8000 or `backend/.env`, it no longer applies.
 
 ## Prerequisites
 
-- **Python 3.11+** (download from [python.org](https://www.python.org))
-- **Node.js 18+** (download from [nodejs.org](https://www.nodejs.org))
-- **npm** (comes with Node.js)
-- **Git**
+- **Node.js 18+** and npm
 
-## Quick Start (5 minutes)
+That is the whole list.
 
-### Backend
+## Quick start
 
 ```bash
-cd backend
-python -m pip install -r requirements-dev.txt
-python bootstrap.py  # Verify setup
-python -m uvicorn app.main:app --reload --port 8000
-```
-
-✅ Backend runs on: http://localhost:8000  
-📚 API docs: http://localhost:8000/docs
-
-### Frontend
-
-```bash
+git clone https://github.com/VenkataVinesh/Veltrix.git
+cd Veltrix
 npm install
 npm run dev
 ```
 
-✅ Frontend runs on: http://localhost:3001
+Open <http://localhost:3000>.
 
-## Default Test Accounts
+It runs with **no configuration at all**. Crypto quotes, candles, technical
+signals and forecasts all work immediately, because CoinGecko's public API
+needs no key, and auth falls back to a shared demo Supabase project.
 
-With `SEED_DEFAULT_USERS=true` (development environment only), the backend
-seeds `admin@veltrix.ai` (admin) and `demo@veltrix.ai` (trader) on first
-startup. Set their passwords via `SEED_ADMIN_PASSWORD` / `SEED_DEMO_PASSWORD`
-in `backend/.env` — if unset, a random password is generated per run and
-printed once in the backend log. No credentials are hardcoded or committed.
+## Adding your own keys
 
-Log in at http://localhost:3001/login with the seeded account.
-
-## Environment Setup
-
-### Backend (.env file)
-
-Located at: `backend/.env`
-
-```
-FRONTEND_URL=http://localhost:3001
-DATABASE_URL=sqlite:///./veltrix.db
-JWT_SECRET=your-secret-key-change-in-production
-REDIS_URL=redis://localhost:6379  # Optional - leave blank to skip
-```
-
-### Frontend (.env file)
-
-Located at: `.env`
-
-```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
-NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000/api/v1/stream
-```
-
-## Common Tasks
-
-### Run Tests
+Copy `.env.example` to `.env.local` and fill in what you need. Every key is
+optional except Supabase, and the app degrades honestly without each one —
+it reports a source as unavailable rather than substituting invented data.
 
 ```bash
-# Backend tests
-cd backend
-pytest
-
-# Frontend tests
-npm test
+cp .env.example .env.local
 ```
 
-### Start with Fresh Database
+| Variable | Unlocks | Free tier |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` | Your own auth + portfolios | Yes |
+| `TWELVEDATA_API_KEY` | **Equity history** → stock signals and forecasts | 800 credits/day, 8/min |
+| `FINNHUB_API_KEY` | Live equity quotes and company headlines | 60 req/min |
+| `ALPHAVANTAGE_API_KEY` | Fallback equity history | 25 req/day |
+| `FRED_API_KEY` | The Macro page | Effectively unlimited |
+| `GROQ_API_KEY` | Multi-agent debate (fastest option) | Generous |
+| `GEMINI_API_KEY` | Debate fallback provider | Per-minute limits |
+| `OPENROUTER_API_KEY` | Debate fallback provider | **50 requests/day** |
+
+Two things worth knowing before you wire these up, both learned the hard way:
+
+- **Finnhub alone is not enough for stocks.** Its `/stock/candle` endpoint is
+  premium-only and returns `403` on a free key, so a Finnhub key gives you
+  prices but no history — and without history there are no signals and no
+  forecasts. Twelve Data is what actually makes equities work.
+- **OpenRouter's free tier is 50 requests per _day_, not per minute.** One
+  debate costs about 10 model calls. Set `GROQ_API_KEY` as well; free quotas
+  are per-provider, so stacking them multiplies capacity at no cost.
+
+The Supabase **anon/publishable** key is designed to ship in client bundles and
+grants no privileges on its own — Row Level Security is the authorisation
+boundary. Never put a *service role* key in this file.
+
+## Supabase (only if using your own project)
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Under **Authentication → Providers → Email**, turn **Confirm email** off for
+   local development, or signups will hang waiting on a confirmation link.
+3. Copy the project URL and anon key from **Project Settings → API** into
+   `.env.local`.
+
+Schema and RLS policies are applied by the migrations in the Supabase project
+itself; the app assumes tables are already present and does not create them.
+
+## Checks
 
 ```bash
-# Delete SQLite database (will be recreated on startup)
-rm backend/veltrix.db
-
-# Restart backend
-cd backend
-python -m uvicorn app.main:app --reload
+npm run build      # production build — compiles every route
+npx tsc --noEmit   # type check
+npm run lint       # eslint
 ```
 
-### Access PostgreSQL (if available)
-
-Update `backend/.env`:
-
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/veltrix
-```
-
-### Enable Redis Locally
-
-```bash
-# Install Redis locally or run Docker:
-docker run -d -p 6379:6379 redis:latest
-
-# Update backend/.env:
-REDIS_URL=redis://localhost:6379
-
-# Restart backend
-```
-
-### Enable Celery Workers
-
-```bash
-cd backend
-celery -A app.tasks.celery_app worker --loglevel=info
-```
+CI runs all three on every push (`.github/workflows/frontend.yml`).
 
 ## Troubleshooting
 
-### Port Already in Use
+**Stock symbols show "history unavailable".**
+Expected without `TWELVEDATA_API_KEY`. Crypto is unaffected.
 
-```bash
-# Change backend port:
-python -m uvicorn app.main:app --reload --port 8001
+**Signup does nothing.**
+Email confirmation is on in your Supabase project. See step 2 above.
 
-# Change frontend port:
-PORT=3002 npm run dev
-```
+**Macro page says no provider configured.**
+`FRED_API_KEY` is unset. Keys are free and issued instantly.
 
-### Module Not Found
-
-```bash
-# Reinstall dependencies
-pip install -e .
-```
-
-### CORS Errors
-
-Check that `FRONTEND_URL` in `backend/.env` matches your frontend URL:
-- Dev: `http://localhost:3001`
-- Production: Your actual domain
-
-### Redis Connection Error
-
-Redis is optional. If not available, the system logs a warning and continues.
-
-## Architecture Overview
-
-```
-Frontend (Next.js/React)        Backend (FastAPI)
-localhost:3001                  localhost:8000
-├─ Authentication               ├─ Auth endpoints
-├─ Dashboard & Views            ├─ Market data
-├─ Real-time updates (WebSocket)├─ Signals engine
-└─ Portfolio Management         └─ AI Copilot
-
-        ↔ REST API + WebSocket
-        
-SQLite Database (local dev)
-- Users
-- Portfolios & Positions
-- Signals & Predictions
-- Chat history
-```
-
-## Database Schema
-
-The following tables are automatically created on startup:
-
-- `users` - User accounts and authentication
-- `portfolios` - User portfolios
-- `positions` - Stock positions
-- `watchlists` - Watched symbols
-- `ai_signals` - Trading signals
-- `predictions` - Price predictions
-- `ai_conversations` - Chat history
-- `notifications` - User notifications
-- And more...
-
-## Performance Tips
-
-1. **Use Redis** for caching and WebSocket pubsub (3-5x faster)
-2. **Use PostgreSQL** instead of SQLite for production
-3. **Enable Celery** for background tasks
-4. **Monitor logs** for any warnings or errors
-
-## Getting Help
-
-- Check logs: Both services log to console and can be written to files
-- Run bootstrap: `python backend/bootstrap.py` verifies all systems
-- Review API docs: http://localhost:8000/docs (auto-generated from code)
-
-## Next Steps
-
-- [x] Setup complete
-- [ ] Login with test account
-- [ ] Explore dashboard
-- [ ] Test WebSocket connections
-- [ ] Review API endpoints
-- [ ] Start development
-
----
-
-**Questions?** Check the code comments or review the architecture documentation.
+**Debate returns the deterministic signal instead of agent opinions.**
+No LLM key is set, or the day's free quota is spent. The app deliberately
+falls back to the transparent composite signal rather than inventing
+opinions.

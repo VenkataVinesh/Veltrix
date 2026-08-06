@@ -1,28 +1,36 @@
-# v0 sandbox internal files
+# Dependencies
+node_modules
+
+# Build output
+.next/
+tsconfig.tsbuildinfo
+
+# Environment — never commit real keys
+.env
+.env*.local
+
+# Deploy
+.vercel/
+
+# Editor / OS
+.DS_Store
+
+# Leftovers from the removed FastAPI backend. The service is gone from the
+# repo, but a virtualenv and stray bytecode can still exist on a machine
+# that ran it — never let them back in.
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.sqlite3
+
+# Local browser profiles used by agent tooling. Binary crash-report junk;
+# committed once by accident, must not come back.
+.chrome-profile-*/
+
+# v0 sandbox internals
 __v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
-.vercel/
-
-# Environment variables
-.env*.local
-
-# Common ignores
-node_modules
-.next/
-.DS_Store
-.vercel
-
-.env
-
-__pycache__/
-*.pyc
-
-*.db
-*.sqlite3
-.venv/
-
-# Build artifacts
-tsconfig.tsbuildinfo

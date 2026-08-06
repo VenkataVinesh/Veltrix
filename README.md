@@ -222,7 +222,7 @@ npm run dev
 Open <http://localhost:3000>. It runs with **no configuration** — it falls back to the public
 demo Supabase project, and crypto data needs no key.
 
-To point at your own backend, copy `.env.example` to `.env.local`:
+To point at your own Supabase project, copy `.env.example` to `.env.local`:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -244,19 +244,25 @@ npx tsc --noEmit   # type check
 
 ```
 app/
-  (app)/           dashboard · trade · markets · portfolio · settings  (auth-guarded)
-  api/             quotes · candles · signal · forecast · portfolio
+  (app)/           dashboard · trade · markets · intelligence · macro · portfolio · settings
+  api/             quotes · candles · signal · forecast · macro · agents · portfolio
   login/ signup/   Supabase auth
   page.tsx         cinematic landing
 components/
   motion/          preloader, kinetic text, reveals, magnetic, cursor, marquee
   views/           one component per screen
+  ui/glossary.tsx  plain-English definition for every number the app shows
   hero-canvas.tsx  generative live-data hero
   price-chart.tsx  lightweight-charts wrapper
 lib/
-  market/          providers.ts (CoinGecko/Finnhub) · analysis.ts (signal + forecast)
+  market/          providers.ts (CoinGecko/Twelve Data/Finnhub) · analysis.ts (signal +
+                   forecast) · ml.ts (GARCH, plus two models the backtest rejected) ·
+                   macro.ts (FRED series)
+  agents/          multi-agent debate — context gathering, prompts, engine
   supabase/        client · server · config
-middleware.ts      session refresh + route guarding
+middleware.ts      session refresh + route guarding (public allowlist, fails closed)
+docs/
+  FORECAST-EVALUATION.md   what was measured, and what got cut for failing
 ```
 
 ---
@@ -265,11 +271,19 @@ middleware.ts      session refresh + route guarding
 
 Stated plainly, because the whole point of the project is not overclaiming:
 
+- **The forecast has no directional edge, and this is measured.** Pooled over 1,500
+  out-of-sample walk-forward calls the hit-rate is 50.2% (z = 0.16) — a coin flip. Ridge
+  regression and gradient-boosted trees were built, backtested and cut for failing to beat
+  that. What *is* calibrated is the 95% band: 94.75% measured coverage against 95% nominal,
+  after GARCH(1,1) replaced an EWMA estimate that was delivering only 91.7%. Use the band,
+  not the midline. Full method and tables: [docs/FORECAST-EVALUATION.md](docs/FORECAST-EVALUATION.md).
 - **Sell orders are not implemented.** The button is visibly disabled and labelled.
 - **Paper trading only.** No broker integration; no real order ever leaves the browser.
 - **Not investment advice.** The signal engine is a transparent technical composite, not alpha.
-- **Free-tier rate limits.** CoinGecko and Finnhub both throttle; heavy refreshing will 429.
-- **Equities need a key.** Without `FINNHUB_API_KEY` the app is crypto-only, and says so.
+- **Free-tier rate limits.** CoinGecko, Finnhub and Twelve Data all throttle; heavy refreshing
+  will 429. Twelve Data's free daily budget is 800 credits.
+- **Equities need a key.** Without `TWELVEDATA_API_KEY` there is no equity history, so no
+  stock signals or forecasts — the app says so rather than inventing bars.
 
 ---
 
