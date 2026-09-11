@@ -36,13 +36,14 @@ That constraint drove most of the architecture below.
 
 ## Live demo
 
-```
-email     demo.veltrix@gmail.com
-password  VeltrixDemo2026
-```
+**[veltrix-terminal-frontend.vercel.app](https://veltrix-terminal-frontend.vercel.app)**
 
-The demo account carries a seeded BTC/ETH/SOL portfolio so the P&L views are populated.
-Crypto data requires no API key, so the deployment works out of the box.
+Sign up with any email. A `handle_new_user` trigger provisions a $100,000 paper portfolio on
+signup, so the terminal is usable immediately. Crypto needs no API key, so quotes, candles,
+signals and forecasts all work out of the box.
+
+Reviewing this for a role and would rather not create an account? Email me for a demo login with
+an already-populated P&L: `venkata-vinesh-kumar-reddy.atluri@etu.ec-lyon.fr`
 
 ---
 
