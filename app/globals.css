@@ -4,61 +4,76 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ────────────────────────────────────────────────────────────────
-   VELTRIX — design system
-   Near-black surfaces, one lime accent, large soft-rounded cards,
-   oversized tabular numerals, generous padding.
+   VELTRIX — terminal design system (v2)
+
+   An analytics terminal that tells you when there is no edge.
+   Dense but legible: 13px UI text, tabular figures everywhere,
+   10px panels, one accent for focus and primary actions, and
+   market colours that differ in lightness as well as hue (and are
+   always paired with a sign or arrow — never colour alone).
+   Contrast (WCAG 2.x, on --background): fg 16.4:1, fg-2 8.5:1,
+   muted 5.3:1, accent 15.1:1, up 10.4:1, down 7.1:1.
    ──────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Surfaces — four steps, flat, no gradients */
-  --background:  #0B0D10;  /* page */
-  --card:        #14171C;  /* primary card */
-  --elevated:    #1A1E24;  /* nested panel / input */
-  --popover:     #1A1E24;
-  --secondary:   #1A1E24;
-  --muted:       #14171C;
+  /* Surfaces — four steps */
+  --background:  #0A0C0F;  /* page */
+  --card:        #111418;  /* panel */
+  --elevated:    #171B21;  /* raised: inputs, nested rows, hover */
+  --overlay:     #1D222A;  /* palette, menus, tooltips */
+  --popover:     #1D222A;
+  --secondary:   #171B21;
+  --muted:       #111418;
 
-  --foreground:            #FFFFFF;
-  --card-foreground:       #FFFFFF;
-  --popover-foreground:    #FFFFFF;
-  --secondary-foreground:  #D4D8DE;
-  --muted-foreground:      #8A9099;  /* AA on #14171C */
+  --foreground:            #E8EBEF;
+  --card-foreground:       #E8EBEF;
+  --popover-foreground:    #E8EBEF;
+  --secondary-foreground:  #A3ABB6;
+  --muted-foreground:      #7D8691;  /* 4.7:1 even on --elevated */
 
-  /* Lime accent — primary actions, active nav, focus */
+  /* Accent — focus, primary action, active nav. Not used for "up". */
   --primary:            #C6F24E;
-  --primary-foreground: #0B0D10;
+  --primary-foreground: #0A0C0F;
   --accent:             #C6F24E;
-  --accent-foreground:  #0B0D10;
+  --accent-foreground:  #0A0C0F;
 
   /* Market semantics */
-  --success:              #C6F24E;  /* up — reads as the brand */
-  --success-foreground:   #0B0D10;
-  --destructive:          #F87171;  /* down */
-  --destructive-foreground: #FFFFFF;
+  --success:              #3DD68C;  /* up */
+  --success-foreground:   #0A0C0F;
+  --destructive:          #FF6B6B;  /* down */
+  --destructive-foreground: #0A0C0F;
+  --warning:              #F5B83D;
+  --info:                 #7DB4FF;
 
-  --border: #232830;
-  --input:  #1A1E24;
+  --border:       #232933;
+  --border-strong:#2E3540;
+  --input:  #171B21;
   --ring:   #C6F24E;
-  --radius: 1.5rem;   /* 24px — the signature card radius */
+  --radius: 0.625rem;   /* 10px panels */
 
-  --sidebar:                     #0B0D10;
-  --sidebar-foreground:          #FFFFFF;
+  --sidebar:                     #0A0C0F;
+  --sidebar-foreground:          #E8EBEF;
   --sidebar-primary:             #C6F24E;
-  --sidebar-primary-foreground:  #0B0D10;
-  --sidebar-accent:              #1A1E24;
-  --sidebar-accent-foreground:   #FFFFFF;
-  --sidebar-border:              #232830;
+  --sidebar-primary-foreground:  #0A0C0F;
+  --sidebar-accent:              #171B21;
+  --sidebar-accent-foreground:   #E8EBEF;
+  --sidebar-border:              #232933;
   --sidebar-ring:                #C6F24E;
 
   /* Data-viz series */
   --chart-1: #C6F24E;
-  --chart-2: #7DD3FC;
-  --chart-3: #A78BFA;
-  --chart-4: #F87171;
-  --chart-5: #FBBF24;
+  --chart-2: #7DB4FF;
+  --chart-3: #B79CFF;
+  --chart-4: #FF6B6B;
+  --chart-5: #F5B83D;
 
-  --chart-grid: #1C2128;
-  --chart-text: #8A9099;
+  --chart-grid: #1A1F26;
+  --chart-text: #7D8691;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
 }
 
 @theme inline {
@@ -83,6 +98,10 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-overlay: var(--overlay);
+  --color-border-strong: var(--border-strong);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -91,11 +110,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
-  --radius-2xl: 2rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.875rem;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -111,6 +130,8 @@
   html { color-scheme: dark; }
   body {
     @apply bg-background text-foreground antialiased;
+    font-size: 0.8125rem;
+    line-height: 1.45;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
   }
   /* Every figure in the product is tabular so columns don't jitter */
@@ -118,8 +139,8 @@
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
-    border-radius: var(--radius-md);
   }
+  ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
 }
 
 /* ─── Scrollbar ─── */
@@ -132,87 +153,110 @@
 .card-surface {
   background: var(--card);
   border-radius: var(--radius);
-  border: 1px solid transparent;
-  transition: border-color 0.25s ease, transform 0.25s ease;
+  border: 1px solid var(--border);
+  transition: border-color var(--dur-2) ease;
 }
-/* Interactive cards lift; static ones just warm their edge */
-.card-surface:hover { border-color: color-mix(in srgb, var(--primary) 22%, transparent); }
-a.card-surface:hover, .card-surface[role='button']:hover { transform: translateY(-3px); }
+a.card-surface:hover, .card-surface[role='button']:hover { border-color: var(--border-strong); }
 
-/* App screens rise on mount. Deliberately transform-only: an entrance that
-   animates opacity can leave content permanently invisible if the animation
-   never runs. Motion is a bonus, legibility is not negotiable. */
-@keyframes enter-up {
-  from { transform: translateY(14px); }
-  to   { transform: translateY(0); }
-}
-main .card-surface,
-main > div > div > .card-surface {
-  animation: enter-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-main .grid > *:nth-child(1) .card-surface, main .grid > *:nth-child(1).card-surface { animation-delay: 0.02s; }
-main .grid > *:nth-child(2) .card-surface, main .grid > *:nth-child(2).card-surface { animation-delay: 0.07s; }
-main .grid > *:nth-child(3) .card-surface, main .grid > *:nth-child(3).card-surface { animation-delay: 0.12s; }
-main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surface { animation-delay: 0.17s; }
 .panel-inset {
   background: var(--elevated);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
 }
 
-/* Display numerals — the hero figure treatment */
+/* Panel header row: title left, controls right, hairline under */
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Display numerals */
 .figure {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
 }
-.figure-xl { font-size: clamp(2.25rem, 4vw, 3.5rem); }
-.figure-lg { font-size: clamp(1.75rem, 3vw, 2.5rem); }
-.figure-md { font-size: 1.5rem; }
+.figure-xl { font-size: clamp(1.75rem, 2.6vw, 2.25rem); }
+.figure-lg { font-size: clamp(1.375rem, 2vw, 1.75rem); }
+.figure-md { font-size: 1.125rem; }
+.figure-sm { font-size: 0.9375rem; }
 
-/* Section eyebrow */
+/* Section label */
 .eyebrow {
   font-size: 0.6875rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
 
-/* Lime pill button */
-.btn-lime {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: 999px;
+/* Buttons — compact, 6px radius, visible press state */
+.btn-lime, .btn-ghost, .btn-outline {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+  border-radius: var(--radius-md);
   font-weight: 600;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  transition: background var(--dur-1) ease, filter var(--dur-1) ease, transform var(--dur-1) ease, border-color var(--dur-1) ease;
 }
-.btn-lime:hover { filter: brightness(1.08); }
-.btn-lime:active { transform: translateY(1px); }
+.btn-lime { background: var(--primary); color: var(--primary-foreground); }
+.btn-lime:hover { filter: brightness(1.07); }
+.btn-ghost { background: var(--elevated); color: var(--foreground); font-weight: 500; }
+.btn-ghost:hover { background: var(--overlay); }
+.btn-outline { border: 1px solid var(--border); color: var(--foreground); font-weight: 500; }
+.btn-outline:hover { border-color: var(--border-strong); background: var(--elevated); }
+.btn-lime:active, .btn-ghost:active, .btn-outline:active { transform: translateY(1px); }
 
-/* Ghost pill */
-.btn-ghost {
-  background: var(--elevated);
-  color: var(--foreground);
-  border-radius: 999px;
-  font-weight: 500;
-  transition: background 0.15s ease;
+/* Segmented control */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-md); background: var(--elevated); }
+.seg > button {
+  border-radius: 4px; padding: 0.25rem 0.625rem;
+  font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground);
+  transition: background var(--dur-1) ease, color var(--dur-1) ease;
 }
-.btn-ghost:hover { background: #232830; }
+.seg > button:hover { color: var(--foreground); }
+.seg > button[aria-pressed='true'] { background: var(--overlay); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border-strong); }
 
 /* Status chip */
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  border-radius: 999px;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  gap: 0.25rem;
+  border-radius: 4px;
+  padding: 0.125rem 0.4375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
 }
-.chip-up   { background: rgba(198,242,78,0.12); color: var(--success); }
-.chip-down { background: rgba(248,113,113,0.12); color: var(--destructive); }
-.chip-flat { background: var(--elevated); color: var(--muted-foreground); }
+.chip-up   { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.chip-down { background: color-mix(in srgb, var(--destructive) 14%, transparent); color: var(--destructive); }
+.chip-flat { background: var(--elevated); color: var(--secondary-foreground); }
+.chip-warn { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.chip-accent { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
+
+/* Keyboard hint */
+kbd, .kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 0.3125rem;
+  border-radius: 4px; border: 1px solid var(--border-strong); border-bottom-width: 2px;
+  background: var(--elevated); color: var(--secondary-foreground);
+  font-family: var(--font-mono); font-size: 0.6875rem; line-height: 1;
+}
+
+/* Skeleton shimmer — shaped like the content it stands in for */
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skeleton {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--elevated) 25%, var(--overlay) 37%, var(--elevated) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+/* Diverging vote bar: centre line, bar grows left (bearish) or right (bullish) */
+.vote-track { position: relative; height: 6px; border-radius: 3px; background: var(--elevated); }
+.vote-track::after { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--border-strong); }
+.vote-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
 
 /* ─── Marquee ───
    Driven by GSAP (so it can react to scroll velocity); this keyframe is the
@@ -235,8 +279,8 @@ main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surf
 }
 
 /* ─── Price flash ─── */
-@keyframes flash-up   { 0% { background-color: rgba(198,242,78,0.16); } 100% { background-color: transparent; } }
-@keyframes flash-down { 0% { background-color: rgba(248,113,113,0.16); } 100% { background-color: transparent; } }
+@keyframes flash-up   { 0% { background-color: rgba(61,214,140,0.18); } 100% { background-color: transparent; } }
+@keyframes flash-down { 0% { background-color: rgba(255,107,107,0.18); } 100% { background-color: transparent; } }
 .flash-up   { animation: flash-up 0.5s ease-out; }
 .flash-down { animation: flash-down 0.5s ease-out; }
 
@@ -285,29 +329,34 @@ main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surf
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
-.terminal-table { width: 100%; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.terminal-table { width: 100%; font-size: 0.8125rem; font-variant-numeric: tabular-nums; border-collapse: collapse; }
 .terminal-table th {
-  text-align: left;
   font-weight: 500;
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.875rem;
+  white-space: nowrap;
 }
-.terminal-table td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); }
-.terminal-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+/* Alignment comes from the cell's own utility class (text-right etc.);
+   only default to left when none is given. */
+.terminal-table th:not([class*='text-']) { text-align: left; }
+.terminal-table td { padding: 0.5rem 0.875rem; border-top: 1px solid var(--border); white-space: nowrap; }
+.terminal-table tbody tr { transition: background var(--dur-1) ease; }
+.terminal-table tbody tr:hover { background: var(--elevated); }
 .nav-item {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding: 0.625rem 0.875rem;
-  border-radius: var(--radius-lg);
-  font-size: 0.875rem; font-weight: 500;
+  display: flex; align-items: center; gap: 0.625rem;
+  height: 2.25rem; padding: 0 0.625rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem; font-weight: 500;
   color: var(--muted-foreground);
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-1) ease, background var(--dur-1) ease;
   cursor: pointer;
 }
 .nav-item:hover { color: var(--foreground); background: var(--elevated); }
-.nav-item.active { color: var(--primary-foreground); background: var(--primary); }
+.nav-item.active { color: var(--foreground); background: var(--elevated); box-shadow: inset 2px 0 0 var(--primary); }
+.nav-item.active svg { color: var(--primary); }
 .chart-container { position: relative; width: 100%; border-radius: var(--radius); overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -319,7 +368,7 @@ main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surf
 }
 
 /* ────────────────────────────────────────────────────────────────
-   Ambient background — authenticated app
+   Ambient background — auth pages (login, signup)
    Three blurred radial blobs drifting behind the cards. Animates
    transform and opacity only, so it stays on the compositor: no
    layout, no paint, no rAF loop competing with live market data.
@@ -388,27 +437,25 @@ main .grid > *:nth-child(4) .card-surface, main .grid > *:nth-child(4).card-surf
    Applied per route change. Short and small-amplitude: this fires
    on every navigation, and anything longer than ~400ms starts to
    feel like latency rather than polish. */
+/* Transform-only, like every entrance in this codebase: animating opacity
+   can leave content invisible if the animation never runs. */
 @keyframes page-enter {
-  from { opacity: 0; transform: translate3d(0, 10px, 0); }
-  to   { opacity: 1; transform: none; }
+  from { transform: translate3d(0, 6px, 0); }
+  to   { transform: none; }
 }
 
 .page-enter > * {
-  animation: page-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* Stagger the first few blocks; beyond that the delay would be felt. */
 .page-enter > *:nth-child(1) { animation-delay: 0.00s; }
-.page-enter > *:nth-child(2) { animation-delay: 0.05s; }
-.page-enter > *:nth-child(3) { animation-delay: 0.10s; }
-.page-enter > *:nth-child(4) { animation-delay: 0.15s; }
-.page-enter > *:nth-child(n+5) { animation-delay: 0.18s; }
+.page-enter > *:nth-child(2) { animation-delay: 0.03s; }
+.page-enter > *:nth-child(n+3) { animation-delay: 0.06s; }
 
-/* Cards lift very slightly toward the pointer. Border colour carries
-   most of the signal; the transform is there to make it feel physical. */
-.card-surface {
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-              border-color 0.22s ease;
-}
-@media (hover: hover) {
-  .card-surface:hover { transform: translateY(-2px); border-color: #2E3540; }
-}
+
+/* Dialog entrance: transform-only, short. */
+@keyframes palette-in { from { transform: translateY(-6px) scale(0.985); } to { transform: none; } }
+.palette-in { animation: palette-in var(--dur-2) var(--ease-out); }
+
+/* Mobile bottom tab bar respects the home indicator. */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
