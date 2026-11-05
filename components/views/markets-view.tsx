@@ -35,7 +35,7 @@ export function MarketsView() {
     <div className="space-y-5">
       <div>
         <Eyebrow>Live prices</Eyebrow>
-        <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">Markets</h1>
+        <h1 className="mt-1 text-lg font-semibold tracking-tight">Markets</h1>
       </div>
 
       {equityMissing && (
@@ -52,29 +52,19 @@ export function MarketsView() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-full bg-elevated p-1">
+        <div className="seg" role="group" aria-label="Asset type">
           {(['all', 'crypto', 'equity'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              aria-pressed={filter === f}
-              className={cn(
-                'rounded-full px-4 py-2 text-sm font-medium capitalize transition-colors',
-                filter === f ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {f}
-            </button>
+            <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className="capitalize">{f}</button>
           ))}
         </div>
         <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search assets"
             aria-label="Search assets"
-            className="w-full rounded-full border border-border bg-elevated py-2.5 pl-11 pr-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+            className="h-7 w-full rounded-md border border-border bg-elevated pl-8 pr-3 text-xs outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
           />
         </div>
       </div>

@@ -149,7 +149,7 @@ export function MacroView() {
     <div className="space-y-6">
       <div>
         <Eyebrow>Federal Reserve Economic Data</Eyebrow>
-        <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">Macro</h1>
+        <h1 className="mt-1 text-lg font-semibold tracking-tight">Macro</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           The backdrop every position sits in. These are published series from FRED, shown as
           released — no forecasts, no adjustments. Each one explains what it measures and why it
