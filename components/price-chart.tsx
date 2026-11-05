@@ -9,15 +9,17 @@ import {
 
 export interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
 
+// Mirrors the tokens in app/globals.css (canvas cannot read CSS variables).
 const C = {
-  lime: '#C6F24E',
-  limeFillTop: 'rgba(198,242,78,0.22)',
-  limeFillBottom: 'rgba(198,242,78,0.01)',
-  down: '#F87171',
-  grid: '#1C2128',
-  text: '#8A9099',
-  crosshair: 'rgba(255,255,255,0.35)',
-  label: '#1A1E24',
+  line: '#C6F24E',
+  fillTop: 'rgba(198,242,78,0.18)',
+  fillBottom: 'rgba(198,242,78,0.0)',
+  up: '#3DD68C',
+  down: '#FF6B6B',
+  grid: '#1A1F26',
+  text: '#7D8691',
+  crosshair: 'rgba(232,235,239,0.35)',
+  label: '#1D222A',
 }
 
 export function PriceChart({
@@ -28,7 +30,8 @@ export function PriceChart({
 }: {
   candles: Candle[]
   mode?: 'area' | 'candles'
-  height?: number
+  /** Pixels, or any CSS length (e.g. '100%' to fill a sized parent). */
+  height?: number | string
   onHover?: (c: Candle | null) => void
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -53,7 +56,7 @@ export function PriceChart({
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: C.text,
         fontSize: 11,
-        fontFamily: 'var(--font-inter), Inter, sans-serif',
+        fontFamily: 'JetBrains Mono, ui-monospace, monospace',
       },
       grid: {
         vertLines: { visible: false },
@@ -64,21 +67,29 @@ export function PriceChart({
         vertLine: { color: C.crosshair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: C.label },
         horzLine: { color: C.crosshair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: C.label },
       },
-      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, barSpacing: 8 },
+      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, barSpacing: 8, fixLeftEdge: true, fixRightEdge: true },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
       handleScroll: { vertTouchDrag: false },
+      localization: {
+        // Whole numbers for large prices, more precision only for sub-dollar assets.
+        priceFormatter: (p: number) =>
+          p >= 1000 ? Math.round(p).toLocaleString('en-US')
+          : p >= 1 ? p.toFixed(2)
+          : p.toPrecision(4),
+      },
     })
     chartRef.current = chart
 
     seriesRef.current = mode === 'candles'
       ? chart.addSeries(CandlestickSeries, {
-          upColor: C.lime, downColor: C.down,
-          borderUpColor: C.lime, borderDownColor: C.down,
-          wickUpColor: C.lime, wickDownColor: C.down,
+          upColor: C.up, downColor: C.down,
+          borderUpColor: C.up, borderDownColor: C.down,
+          wickUpColor: C.up, wickDownColor: C.down,
         })
       : chart.addSeries(AreaSeries, {
-          lineColor: C.lime, lineWidth: 2,
-          topColor: C.limeFillTop, bottomColor: C.limeFillBottom,
+          lineColor: C.line, lineWidth: 2,
+          topColor: C.fillTop, bottomColor: C.fillBottom,
+          priceLineColor: C.line, lastValueVisible: true,
         })
 
     chart.subscribeCrosshairMove((param) => {

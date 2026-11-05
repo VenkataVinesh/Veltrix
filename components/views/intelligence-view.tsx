@@ -13,6 +13,9 @@ import { cn } from '@/lib/utils'
 import { InfoTip, GlossaryPanel } from '@/components/ui/glossary'
 import { CRYPTO_IDS, EQUITY_NAMES } from '@/lib/market/providers'
 import type { DebateResult, Stance } from '@/lib/agents/engine'
+import { EdgeReport } from '@/components/edge-report'
+import { useSymbolParam } from '@/lib/use-symbol-param'
+import { indistinguishableFromChance, marginPp } from '@/lib/evaluation'
 
 // Quick chips for the handful people actually reach for; the full 79-symbol
 // universe lives in the dropdown beside them.
@@ -28,6 +31,9 @@ const StanceIcon = ({ s }: { s: Stance }) => {
   return <C className={cn('h-4 w-4 shrink-0', stanceTone(s))} />
 }
 
+/** Price-scale numbers: 2 dp for normal prices, more only when the price is tiny. */
+const num = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: Math.abs(v) >= 1 ? 2 : 6 })
+
 const actionTone = (a: string) =>
   a === 'BUY' ? 'text-success' : a === 'SELL' ? 'text-destructive' : 'text-muted-foreground'
 
@@ -41,7 +47,7 @@ function ConfidenceBar({ value, tone = 'bg-primary' }: { value: number; tone?: s
 }
 
 export function IntelligenceView() {
-  const [symbol, setSymbol] = useState('BTC')
+  const [symbol, setSymbol] = useSymbolParam('BTC', [...CRYPTO_LIST.map(([s]) => s), ...EQUITY_LIST.map(([s]) => s)])
   const [debate, setDebate] = useState<DebateResult | null>(null)
 
   const forecast = useQuery({
@@ -75,30 +81,23 @@ export function IntelligenceView() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Eyebrow>Intelligence</Eyebrow>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Forecast &amp; agent debate</h1>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-lg font-semibold tracking-tight">Intelligence</h1>
+          <span className="text-xs text-muted-foreground">forecast bands · composite signal · agent debate</span>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {QUICK.map((sym) => (
-            <button
-              key={sym}
-              onClick={() => pick(sym)}
-              className={cn(
-                'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
-                sym === symbol ? 'bg-primary text-primary-foreground' : 'bg-elevated text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {sym}
-            </button>
-          ))}
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+          <div className="seg max-w-full overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Quick symbols">
+            {QUICK.map((sym) => (
+              <button key={sym} onClick={() => pick(sym)} aria-pressed={sym === symbol}>{sym}</button>
+            ))}
+          </div>
           <select
             aria-label="Choose any symbol"
             value={symbol}
             onChange={(e) => pick(e.target.value)}
-            className="rounded-full bg-elevated px-3.5 py-1.5 text-sm font-medium text-foreground"
+            className="h-7 rounded-md border border-border bg-elevated px-2 text-xs font-medium text-foreground"
           >
             <optgroup label={`Crypto (${CRYPTO_LIST.length})`}>
               {CRYPTO_LIST.map(([s2, n]) => <option key={s2} value={s2}>{s2} — {n}</option>)}
@@ -110,11 +109,13 @@ export function IntelligenceView() {
         </div>
       </div>
 
+      <EdgeReport />
+
       {/* ── Forecast ── */}
       <Card className="p-0">
-        <div className="flex flex-wrap items-end justify-between gap-4 p-6 pb-0">
+        <div className="flex flex-wrap items-end justify-between gap-4 p-4 pb-0">
           <div>
-            <Eyebrow>14-day ensemble forecast</Eyebrow>
+            <Eyebrow>14-day ensemble forecast · {symbol}</Eyebrow>
             <div className="mt-2 flex items-baseline gap-3">
               <span className="figure figure-lg">
                 {f && !f.unavailable ? fmtPrice(f.currentPrice) : '—'}
@@ -136,23 +137,18 @@ export function IntelligenceView() {
                 </>
               ) : (
                 <>
-                  <p className={cn('figure figure-md mt-2', f.hitRate > 0.55 ? 'text-success' : f.hitRate < 0.45 ? 'text-destructive' : 'text-muted-foreground')}>
+                  <p className={cn('figure figure-md mt-2', indistinguishableFromChance(f.hitRate, f.backtest.nDirectional) ? 'text-secondary-foreground' : f.hitRate > 0.5 ? 'text-success' : 'text-destructive')}>
                     {(f.hitRate * 100).toFixed(0)}%
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {f.backtest.nCorrect}/{f.backtest.nDirectional} directional calls
-                    {' · ±'}
-                    {(196 * Math.sqrt(0.25 / Math.max(f.backtest.nDirectional, 1))).toFixed(0)}pp
-                    {' at 95%'}
+                    {' · ±'}{marginPp(f.backtest.nDirectional).toFixed(0)}pp at 95%
                   </p>
                   {/* A sample this small cannot resolve a real edge from noise,
                       so say that outright instead of letting the headline
                       number imply more precision than it has. */}
-                  {Math.abs(f.hitRate - 0.5) <
-                    1.96 * Math.sqrt(0.25 / Math.max(f.backtest.nDirectional, 1)) && (
-                    <p className="text-xs text-muted-foreground">
-                      not distinguishable from a coin flip
-                    </p>
+                  {indistinguishableFromChance(f.hitRate, f.backtest.nDirectional) && (
+                    <p className="mt-1"><span className="chip chip-warn">not distinguishable from a coin flip</span></p>
                   )}
                 </>
               )}
@@ -161,7 +157,7 @@ export function IntelligenceView() {
         </div>
 
         {forecast.isLoading ? (
-          <Skeleton className="m-6 h-[320px]" />
+          <Skeleton className="m-4 h-[320px]" />
         ) : fUnavailable ? (
           <div className="p-6">
             <EmptyState
@@ -172,20 +168,20 @@ export function IntelligenceView() {
         ) : (
           <>
             <ForecastChart history={history} path={f.path} className="mt-6 h-[280px] w-full md:h-[320px]" />
-            <div className="grid gap-px overflow-hidden border-t border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-px overflow-hidden border-t border-border bg-border lg:grid-cols-4">
               {([
-                { k: 'Ensemble RMSE', v: f.backtest.rmse.toFixed(4), t: 'rmse' },
-                { k: 'Ensemble MAE', v: f.backtest.mae.toFixed(4), t: 'mae' },
+                { k: 'Ensemble RMSE', v: num(f.backtest.rmse), t: 'rmse' },
+                { k: 'Ensemble MAE', v: num(f.backtest.mae), t: 'mae' },
                 { k: 'Out-of-sample steps', v: String(f.backtest.nTest), t: 'outOfSample' },
                 { k: 'Band', v: '95% interval', t: 'band' },
               ] as const).map((m) => (
-                <div key={m.k} className="bg-card p-5">
+                <div key={m.k} className="bg-card p-3.5">
                   <span className="inline-flex items-center gap-1.5"><Eyebrow>{m.k}</Eyebrow><InfoTip term={m.t} /></span>
                   <p className="figure figure-md mt-2">{m.v}</p>
                 </div>
               ))}
             </div>
-            <div className="border-t border-border p-6">
+            <div className="border-t border-border p-4">
               <span className="inline-flex items-center gap-1.5"><Eyebrow>Model weights — earned by inverse RMSE on the backtest</Eyebrow><InfoTip term="weights" /></span>
               <div className="mt-4 space-y-3">
                 {Object.entries(f.weights).map(([name, w]) => (
@@ -227,13 +223,14 @@ export function IntelligenceView() {
             </div>
           </div>
 
-          <div className="mt-6 space-y-px overflow-hidden rounded-xl bg-border">
+          <div className="mt-4 space-y-px overflow-hidden rounded-lg border border-border bg-border">
             {s.components.map((c) => (
-              <div key={c.name} className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-card px-4 py-3">
+              <div key={c.name} className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-card px-3.5 py-2 text-xs">
                 <StanceIcon s={c.vote as Stance} />
-                <span className="min-w-[150px] text-sm font-medium">{c.name}</span>
-                <span className="tnum text-sm text-muted-foreground">{c.value}</span>
-                <span className="flex-1 text-sm text-muted-foreground">{c.detail}</span>
+                <span className="sr-only">{c.vote}</span>
+                <span className="min-w-[150px] font-medium">{c.name}</span>
+                <span className="tnum text-secondary-foreground">{c.value}</span>
+                <span className="flex-1 text-muted-foreground">{c.detail}</span>
                 <span className="tnum text-xs text-muted-foreground">weight {c.weight}</span>
               </div>
             ))}
@@ -254,7 +251,7 @@ export function IntelligenceView() {
           <button
             onClick={() => runDebate.mutate()}
             disabled={runDebate.isPending}
-            className="btn-lime inline-flex items-center gap-2 px-6 py-3 text-sm disabled:opacity-60"
+            className="btn-lime inline-flex items-center gap-2 px-3.5 py-2 text-sm disabled:opacity-60"
           >
             {runDebate.isPending
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Running debate…</>
@@ -269,7 +266,7 @@ export function IntelligenceView() {
         )}
 
         {debate?.degraded && (
-          <div className="mt-5 flex items-start gap-3 rounded-xl border border-border p-4">
+          <div className="mt-5 flex items-start gap-3 rounded-lg border border-border p-4">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <div>
               <p className="text-sm font-medium">Debate unavailable — showing arithmetic only</p>
@@ -279,10 +276,10 @@ export function IntelligenceView() {
         )}
 
         {debate && !debate.degraded && (
-          <div className="mt-6 space-y-6">
+          <div className="mt-4 space-y-4">
             {/* Verdict */}
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="panel-inset p-5">
+              <div className="panel-inset p-3.5">
                 <Eyebrow>Trader</Eyebrow>
                 <p className={cn('figure figure-lg mt-2', actionTone(debate.trader!.action))}>
                   {debate.trader!.action}
@@ -291,7 +288,7 @@ export function IntelligenceView() {
                   confidence {(debate.trader!.confidence * 100).toFixed(0)}%
                 </p>
               </div>
-              <div className="panel-inset p-5">
+              <div className="panel-inset p-3.5">
                 <span className="inline-flex items-center gap-1.5"><Eyebrow>Risk manager</Eyebrow><InfoTip term="positionSize" /></span>
                 <p className="mt-2 flex items-center gap-2">
                   {debate.risk!.approved
@@ -303,7 +300,7 @@ export function IntelligenceView() {
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">{debate.risk!.verdict}</p>
               </div>
-              <div className="panel-inset p-5">
+              <div className="panel-inset p-3.5">
                 <span className="inline-flex items-center gap-1.5"><Eyebrow>Agrees with the arithmetic?</Eyebrow><InfoTip term="agreesWithQuant" /></span>
                 <p className={cn('figure figure-md mt-2', debate.agreesWithQuant ? 'text-success' : 'text-destructive')}>
                   {debate.agreesWithQuant === null ? 'n/a' : debate.agreesWithQuant ? 'Yes' : 'No'}
@@ -333,7 +330,7 @@ export function IntelligenceView() {
               <Eyebrow>Analysts</Eyebrow>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {debate.analysts.map((a) => (
-                  <div key={a.role} className="panel-inset p-5">
+                  <div key={a.role} className="panel-inset p-3.5">
                     <div className="flex items-center gap-2">
                       <StanceIcon s={a.stance} />
                       <span className="text-sm font-medium">{a.label}</span>
@@ -360,7 +357,7 @@ export function IntelligenceView() {
                         : undefined
                       const drift = prev ? r.confidence - prev.confidence : 0
                       return (
-                        <div key={`${r.role}-${round}`} className="panel-inset p-5">
+                        <div key={`${r.role}-${round}`} className="panel-inset p-3.5">
                           <div className="flex items-center gap-2">
                             <StanceIcon s={r.stance} />
                             <span className="text-sm font-medium">{r.label}</span>

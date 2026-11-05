@@ -24,7 +24,7 @@ export default async function SettingsPage() {
     <div className="max-w-3xl space-y-5">
       <div>
         <Eyebrow>Account</Eyebrow>
-        <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">Settings</h1>
+        <h1 className="mt-1 text-lg font-semibold tracking-tight">Settings</h1>
       </div>
 
       <Card>
@@ -58,7 +58,7 @@ export default async function SettingsPage() {
       <Card>
         <Eyebrow>About this build</Eyebrow>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Veltrix is a portfolio project by A. Venkata Vinesh Kumar Reddy. Prices come from live
+          Veltrix is a portfolio project by Venkata Vinesh Kumar Reddy Atluri. Prices come from live
           public APIs; signals and forecasts are computed server-side from that data. Forecast
           confidence is a measured walk-forward hit-rate and is reported even when it shows no
           predictive edge. Trading is paper-only — no real orders are placed anywhere.

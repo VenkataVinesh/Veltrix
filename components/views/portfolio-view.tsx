@@ -44,7 +44,7 @@ export function PortfolioView() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Eyebrow>Holdings</Eyebrow>
-          <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">Portfolio</h1>
+          <h1 className="mt-1 text-lg font-semibold tracking-tight">Portfolio</h1>
         </div>
         <button onClick={() => setOpen(true)} className="btn-lime inline-flex items-center gap-2 px-5 py-2.5 text-sm">
           <Plus className="h-4 w-4" /> Add position

@@ -5,9 +5,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDownUp, Loader2, Check } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PriceChart, type Candle } from '@/components/price-chart'
-import { Card, Eyebrow, DeltaChip, EmptyState, fmtPrice, fmtUsd, fmtCompact } from '@/components/ui/primitives'
+import { Card, Eyebrow, DeltaChip, EmptyState, Skeleton, fmtPrice, fmtUsd, fmtCompact } from '@/components/ui/primitives'
 import { InfoTip } from '@/components/ui/glossary'
 import { cn } from '@/lib/utils'
+import { useSymbolParam } from '@/lib/use-symbol-param'
+import { CRYPTO_IDS } from '@/lib/market/providers'
 
 const SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE']
 const RANGES = [
@@ -18,7 +20,9 @@ const RANGES = [
 ]
 
 export function TradeView() {
-  const [symbol, setSymbol] = useState('BTC')
+  // Paper trading is crypto-only (equities need a paid history feed), so the
+  // URL may name any crypto asset; the quick picks stay short.
+  const [symbol, setSymbol] = useSymbolParam('BTC', Object.keys(CRYPTO_IDS))
   const [days, setDays] = useState(30)
   const [mode, setMode] = useState<'area' | 'candles'>('area')
   const [hover, setHover] = useState<Candle | null>(null)
@@ -27,8 +31,8 @@ export function TradeView() {
   const qc = useQueryClient()
 
   const { data: quoteData } = useQuery({
-    queryKey: ['quotes', SYMBOLS],
-    queryFn: () => api.quotes(SYMBOLS),
+    queryKey: ['quotes', SYMBOLS, symbol],
+    queryFn: () => api.quotes(SYMBOLS.includes(symbol) ? SYMBOLS : [...SYMBOLS, symbol]),
     refetchInterval: 30_000,
   })
   const { data: candleData, isLoading } = useQuery({
@@ -62,43 +66,30 @@ export function TradeView() {
   const shown = hover ?? candles.at(-1) ?? null
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <span className="inline-flex items-center gap-1.5">
-            <Eyebrow>Paper trade</Eyebrow>
-            <InfoTip term="paperTrading" />
-          </span>
-          <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">{symbol} / USD</h1>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-lg font-semibold tracking-tight">{symbol} / USD</h1>
+          <span className="inline-flex items-center gap-1"><Eyebrow>Paper trade</Eyebrow><InfoTip term="paperTrading" /></span>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="seg" role="group" aria-label="Symbol">
           {SYMBOLS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setSymbol(s)}
-              aria-pressed={s === symbol}
-              className={cn(
-                'rounded-full px-4 py-2 text-sm font-medium transition-colors',
-                s === symbol ? 'bg-primary text-primary-foreground' : 'bg-elevated text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {s}
-            </button>
+            <button key={s} onClick={() => setSymbol(s)} aria-pressed={s === symbol}>{s}</button>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.55fr_1fr]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,1fr)] xl:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)]">
         {/* Chart */}
         <Card className="p-0">
-          <div className="flex flex-wrap items-start justify-between gap-4 p-6 pb-2">
+          <div className="flex flex-wrap items-start justify-between gap-3 p-3.5 pb-1">
             <div>
               <div className="flex flex-wrap items-baseline gap-3">
                 <span className="figure figure-xl">{price ? fmtPrice(price) : '—'}</span>
                 {quote && <DeltaChip value={quote.change} />}
               </div>
               {shown && (
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                <div className="tnum mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
                   <span>O <span className="tnum text-foreground">{shown.o.toFixed(2)}</span></span>
                   <span>H <span className="tnum text-foreground">{shown.h.toFixed(2)}</span></span>
                   <span>L <span className="tnum text-foreground">{shown.l.toFixed(2)}</span></span>
@@ -108,35 +99,14 @@ export function TradeView() {
               )}
             </div>
             <div className="flex gap-1.5">
-              <div className="flex gap-1 rounded-full bg-elevated p-1">
+              <div className="seg" role="group" aria-label="Range">
                 {RANGES.map((r) => (
-                  <button
-                    key={r.label}
-                    onClick={() => setDays(r.days)}
-                    aria-pressed={days === r.days}
-                    className={cn(
-                      'rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors',
-                      days === r.days ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {r.label}
-                  </button>
+                  <button key={r.label} onClick={() => setDays(r.days)} aria-pressed={days === r.days}>{r.label}</button>
                 ))}
               </div>
-              <div className="flex gap-1 rounded-full bg-elevated p-1">
+              <div className="seg" role="group" aria-label="Chart type">
                 {(['area', 'candles'] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setMode(m)}
-                    aria-pressed={mode === m}
-                    aria-label={`${m} chart`}
-                    className={cn(
-                      'rounded-full px-3.5 py-1.5 text-xs font-medium capitalize transition-colors',
-                      mode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {m}
-                  </button>
+                  <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m} className="capitalize">{m}</button>
                 ))}
               </div>
             </div>
@@ -144,11 +114,9 @@ export function TradeView() {
 
           <div className="px-2 pb-4" onMouseLeave={() => setHover(null)}>
             {isLoading ? (
-              <div className="flex h-[380px] items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
+              <Skeleton className="mx-2.5 my-2 h-[380px] xl:h-[460px]" />
             ) : candles.length ? (
-              <PriceChart candles={candles} mode={mode} height={380} onHover={setHover} />
+              <div className="h-[380px] xl:h-[460px]"><PriceChart candles={candles} mode={mode} height="100%" onHover={setHover} /></div>
             ) : (
               <div className="px-4 py-8">
                 <EmptyState
@@ -163,16 +131,16 @@ export function TradeView() {
         {/* Order panel */}
         <div className="space-y-4">
           <Card>
-            <div className="flex gap-1 rounded-full bg-elevated p-1">
+            <div className="flex gap-1 rounded-md bg-elevated p-0.5">
               {(['buy', 'sell'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setSide(s)}
                   aria-pressed={side === s}
                   className={cn(
-                    'flex-1 rounded-full py-2.5 text-sm font-semibold capitalize transition-colors',
+                    'flex-1 rounded py-2 text-sm font-semibold capitalize transition-colors',
                     side === s
-                      ? s === 'buy' ? 'bg-primary text-primary-foreground' : 'bg-destructive text-white'
+                      ? s === 'buy' ? 'bg-overlay text-success shadow-[inset_0_0_0_1px_var(--border-strong)]' : 'bg-overlay text-destructive shadow-[inset_0_0_0_1px_var(--border-strong)]'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
@@ -181,8 +149,8 @@ export function TradeView() {
               ))}
             </div>
 
-            <div className="mt-5 space-y-2">
-              <div className="panel-inset p-5">
+            <div className="mt-3.5 space-y-2">
+              <div className="panel-inset p-3.5">
                 <div className="flex items-center justify-between">
                   <Eyebrow>You {side === 'buy' ? 'spend' : 'receive'}</Eyebrow>
                   <span className="text-xs text-muted-foreground">
@@ -197,7 +165,7 @@ export function TradeView() {
                     aria-label="USD amount"
                     className="figure figure-lg w-full bg-transparent outline-none"
                   />
-                  <span className="shrink-0 rounded-full bg-primary/12 px-3.5 py-1.5 text-sm font-semibold text-primary">
+                  <span className="shrink-0 rounded bg-elevated px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
                     USD
                   </span>
                 </div>
@@ -209,7 +177,7 @@ export function TradeView() {
                 </div>
               </div>
 
-              <div className="panel-inset p-5">
+              <div className="panel-inset p-3.5">
                 <div className="flex items-center justify-between">
                   <Eyebrow>You {side === 'buy' ? 'receive' : 'sell'}</Eyebrow>
                   <span className="text-xs text-muted-foreground">
@@ -220,7 +188,7 @@ export function TradeView() {
                   <span className="figure figure-lg w-full truncate">
                     {units ? units.toFixed(6) : '0.00'}
                   </span>
-                  <span className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-sm font-semibold">
+                  <span className="shrink-0 rounded bg-card px-2.5 py-1 text-xs font-semibold">
                     {symbol}
                   </span>
                 </div>
@@ -228,14 +196,14 @@ export function TradeView() {
             </div>
 
             {(insufficientCash || insufficientUnits) && (
-              <p className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <p className="mt-4 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {insufficientCash
                   ? `Not enough cash — you have ${fmtUsd(cash, 2)}.`
                   : `Not enough ${symbol} — you hold ${(holding?.quantity ?? 0).toFixed(6)}.`}
               </p>
             )}
             {trade.isError && (
-              <p className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <p className="mt-4 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {(trade.error as Error).message}
               </p>
             )}
@@ -243,7 +211,7 @@ export function TradeView() {
             <button
               onClick={() => trade.mutate()}
               disabled={blocked || trade.isPending || side === 'sell'}
-              className="btn-lime mt-5 flex w-full items-center justify-center gap-2 py-3.5 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn-lime mt-4 flex w-full items-center justify-center gap-2 py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {trade.isPending ? <Loader2 className="h-4 w-4 animate-spin" />
                 : trade.isSuccess ? <Check className="h-4 w-4" /> : null}
