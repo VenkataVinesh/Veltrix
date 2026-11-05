@@ -13,6 +13,7 @@ import {
   useHeroExit, useActiveChapter,
 } from '@/components/motion/primitives'
 import { fmtPrice } from '@/components/ui/primitives'
+import { EdgeReport } from '@/components/edge-report'
 import { cn } from '@/lib/utils'
 
 const CHAPTERS = [
@@ -25,7 +26,7 @@ const CHAPTERS = [
   {
     n: '02',
     title: 'Forecasts that admit uncertainty',
-    body: 'Geometric drift with EWMA volatility, an AR(5) on log returns, and a random-walk baseline — ensembled by inverse-RMSE from a walk-forward backtest. Confidence is the measured directional hit-rate, so when there is no edge it reports ~50%.',
+    body: 'Geometric drift, an AR(5) on log returns, and a random-walk baseline — ensembled by inverse-RMSE from a walk-forward backtest. Bands use GARCH(1,1) volatility where history allows, EWMA otherwise. Confidence is the measured directional hit-rate, so when there is no edge it reports ~50%.',
     stat: { to: 40, label: 'out-of-sample steps per backtest' },
   },
   {
@@ -129,9 +130,9 @@ export function LandingView() {
 
           <div className="mt-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
-              A trading terminal where every number traces back to the data behind it.
-              The shape above is not decoration — it is the last 30 days of Bitcoin,
-              drawn from the same feed the app runs on.
+              An analytics terminal that tells you when there is no edge. Every number
+              traces back to the data behind it — the shape above is the last 30 days of
+              Bitcoin, drawn from the same feed the app runs on.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Magnetic>
@@ -176,6 +177,23 @@ export function LandingView() {
         <HighlightText className="mt-10 max-w-5xl text-[clamp(1.6rem,4.4vw,3.4rem)] font-medium leading-[1.18] tracking-[-0.03em]">
           Most trading products hand you a number and ask you to trust it. Veltrix hands you the arithmetic — every indicator vote, every backtest residual, every confidence figure it actually measured rather than claimed.
         </HighlightText>
+      </section>
+
+      {/* ─── The honest part: measured results, including the negative one ─── */}
+      <section className="mx-auto max-w-[1600px] px-6 pb-24 md:px-12 md:pb-36">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <span className="eyebrow">Measured, not claimed</span>
+            <h2 className="mt-4 max-w-3xl text-[clamp(1.6rem,3.4vw,2.9rem)] font-semibold leading-[1.06] tracking-[-0.03em]">
+              The forecast has no edge. The band does. Both are on the page.
+            </h2>
+          </div>
+          <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+            Walk-forward evaluation on held-out data. A product that hides its 50% hit-rate is
+            asking you to trust a coin flip.
+          </p>
+        </div>
+        <EdgeReport />
       </section>
 
       {/* ─── Scroll-drawn live chart ─── */}
@@ -363,7 +381,7 @@ export function LandingView() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-muted-foreground md:px-12">
-          <span>Veltrix — built by A. Venkata Vinesh Kumar Reddy</span>
+          <span>Veltrix — built by Venkata Vinesh Kumar Reddy Atluri</span>
           <div className="flex gap-6">
             <a href="https://github.com/VenkataVinesh/Veltrix" target="_blank" rel="noreferrer" className="transition-colors hover:text-foreground">GitHub</a>
             <a href="https://www.linkedin.com/in/venkat-vinesh" target="_blank" rel="noreferrer" className="transition-colors hover:text-foreground">LinkedIn</a>
