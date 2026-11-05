@@ -51,7 +51,7 @@ Two deliberate departures, both to avoid fabrication:
 | [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) | MIT | Styling |
 | [GSAP](https://github.com/greensock/GSAP) | Standard "No Charge" license | Scroll choreography, ScrollTrigger |
 | [Lenis](https://github.com/darkroomengineering/lenis) | MIT | Momentum smooth scroll |
-| [lightweight-charts](https://github.com/tradingview/lightweight-charts) | Apache-2.0 | Price charts |
+| [lightweight-charts](https://github.com/tradingview/lightweight-charts) | Apache-2.0 | Price charts. The licence requires TradingView attribution: the chart keeps its built-in TradingView logo (`attributionLogo`, on by default) |
 | [TanStack Query](https://github.com/TanStack/query) | MIT | Data fetching and caching |
 | [lucide-react](https://github.com/lucide-icons/lucide) | ISC | Icons |
 | [Supabase JS / SSR](https://github.com/supabase/supabase-js) | MIT | Auth and Postgres access |

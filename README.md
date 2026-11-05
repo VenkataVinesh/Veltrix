@@ -1,19 +1,30 @@
-<div align="center">
-
 # Veltrix
 
-**A market analytics terminal where every number traces back to the data behind it.**
+**A market-analytics terminal that tells you when there is no edge.**
 
-Live crypto & equity pricing · an auditable technical signal engine · walk-forward-validated
-forecasting · paper trading with row-level-secured portfolios.
+[![CI](https://github.com/VenkataVinesh/Veltrix/actions/workflows/frontend.yml/badge.svg)](https://github.com/VenkataVinesh/Veltrix/actions/workflows/frontend.yml)
+[![Live demo](https://img.shields.io/badge/demo-veltrix--terminal--frontend.vercel.app-C6F24E)](https://veltrix-terminal-frontend.vercel.app)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-[![Next.js](https://img.shields.io/badge/Next.js_14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://vercel.com)
+Live crypto pricing, a technical signal engine that shows every vote, walk-forward-validated
+forecasts with calibrated bands, and paper trading on row-level-secured portfolios.
+Next.js 14 · TypeScript · Supabase · lightweight-charts.
 
-</div>
+![Veltrix dashboard: KPI strip, BTC chart with OHLC legend, composite signal with every indicator vote, markets table and the edge report](docs/screenshots/dashboard.png)
+
+## Measured results
+
+| What | Result | Verdict |
+|---|---|---|
+| Directional hit-rate of the forecast midline, pooled over 1,500 out-of-sample walk-forward calls (6 symbols × 250) | **50.2%** (753/1,500), SE 1.29pp, z = 0.16 | **No edge.** The product says so on the page |
+| 95% interval coverage over 1,200 held-out 5-day forecasts | **94.75%** with GARCH(1,1), up from **91.67%** with the EWMA it replaced | **Calibrated.** Use the band, not the midline |
+| Ridge regression and gradient-boosted stumps added to the ensemble | RMSE change under 1%, hit-rates pulled toward 50%, 123–443× slower | **Cut** |
+
+Method, per-symbol tables and how to re-run: [docs/FORECAST-EVALUATION.md](docs/FORECAST-EVALUATION.md).
+
+| Forecast and edge report | Command palette (⌘K) | Mobile |
+|---|---|---|
+| ![Intelligence view with the edge report and a forecast fan whose band widens from now](docs/screenshots/intelligence.png) | ![Command palette filtering symbols for "eth"](docs/screenshots/command-palette.png) | ![Dashboard on a 390px screen with bottom tab bar](docs/screenshots/dashboard-mobile.png) |
 
 ---
 
@@ -133,11 +144,14 @@ earns weight by actually predicting held-out data:
 | `ar` | AR(5) on log returns, OLS via normal equations + Gaussian elimination, iterated forward |
 | `naive` | Random walk — the benchmark every other model must beat |
 
-Confidence bands are 95% intervals from the EWMA sigma scaled by √horizon.
+Confidence bands are 95% intervals from a **GARCH(1,1)** variance path when the history is long
+enough to fit it, and from the EWMA sigma scaled by √horizon otherwise. The response's
+`methodology` field says which one was used.
 
 **Reported metrics are measured, not asserted.** MAE, RMSE and directional hit-rate come from a
-one-step-ahead walk-forward evaluation over up to 40 held-out points. A hit-rate near 50% means
-no directional edge, and the UI states exactly that.
+one-step-ahead walk-forward evaluation over up to 40 held-out points. The UI prints *n* and the
+95% margin of error next to every hit-rate, and labels it "not distinguishable from a coin flip"
+when it is (at n = 30 the margin is ±18pp).
 
 > Drift is shrunk toward zero on purpose: short-window drift estimates are mostly noise, and an
 > honest model does not extrapolate them at full strength.
@@ -184,30 +198,35 @@ query with the anon key alone returns `[]`.
 | Language | TypeScript, strict |
 | Styling | Tailwind CSS v4 with CSS-variable design tokens |
 | Charts | `lightweight-charts` v5 (area + candlestick) |
-| Motion | GSAP + ScrollTrigger, Lenis smooth scroll, Framer Motion |
+| Motion | GSAP + ScrollTrigger (landing), Lenis smooth scroll, CSS transitions in the app |
 | Data layer | TanStack Query |
 | Auth & DB | Supabase (GoTrue + Postgres with RLS) |
 | Hosting | Vercel |
 
-### Design system
+### Design system (v2, terminal)
 
-Near-black surfaces (`#0B0D10` page, `#14171C` card), a single lime accent (`#C6F24E`), 24px
-card radius, oversized tabular figures. Market semantics reuse the accent for "up" and
-`#F87171` for "down".
+Defined as tokens in `app/globals.css`, documented in [docs/DESIGN.md](docs/DESIGN.md).
 
-The landing hero is a generative canvas: the **real 30-day BTC close series**, normalised and
-drawn as five phase-offset ribbons with additive glow and cursor parallax. The artwork is the
-data.
+- **Dense but legible.** 13 px UI text, tabular figures everywhere, a 4 px spacing grid, 10 px
+  panel radius, panels with a header row instead of floating cards.
+- **Colour carries meaning only.** One accent (lime `#C6F24E`) for focus and primary actions. Up
+  `#3DD68C` and down `#FF6B6B` differ in lightness as well as hue, and are always paired with a
+  ▲/▼ and a sign. WCAG contrast on the page background: text 16.4:1, secondary 8.5:1, muted
+  5.3:1.
+- **Keyboard first.** `⌘K` / `Ctrl K` or `/` opens a command palette over pages, 79 symbols and
+  actions. `g` then a letter navigates (`g d` dashboard, `g t` trade, `g i` intelligence …), and
+  `?` lists every shortcut. Single-key shortcuts are ignored while you type in a field.
+- **Every state designed.** Shimmer skeletons shaped like the content, error states with retry,
+  "provider not configured" states that name the missing key, and empty states with a next step.
+- **Motion is feedback.** 120–180 ms transitions, price flashes on change, transform-only
+  entrances (an opacity entrance can leave content invisible if the animation never runs). All
+  of it is off under `prefers-reduced-motion`.
+- **Responsive by layout, not by shrinking.** An icon rail at 1024 px, rail plus labels from
+  1280 px, a stacked layout with a bottom tab bar on phones. Verified at 1440, 1024, 768 and
+  390 px.
 
-**Two accessibility rules the codebase enforces:**
-
-1. The preloader locks body scroll, so it carries a 4-second failsafe that force-releases.
-   Gating scroll on an animation completing can trap a visitor whose `requestAnimationFrame`
-   is throttled or whose bundle is blocked.
-2. Entrance animations are **transform-only**. Animating opacity on entrance can leave content
-   permanently invisible if the animation never runs.
-
-Every motion primitive no-ops under `prefers-reduced-motion`.
+The landing hero is a generative canvas drawn from the **real 30-day BTC close series**. The
+preloader that locks scroll has a 4-second failsafe.
 
 ---
 
@@ -235,9 +254,14 @@ FINNHUB_API_KEY=            # optional — enables equities
 > privileges by itself. RLS is the security boundary. Never put the *service role* key here.
 
 ```bash
-npm run build      # production build
+npm test           # vitest: indicators, signal, forecast invariants, and a regression test
+                   # that reproduces a captured production /api/signal response from real candles
 npx tsc --noEmit   # type check
+npm run lint
+npm run build      # production build
 ```
+
+CI runs all four on every push and pull request.
 
 ---
 
@@ -250,20 +274,27 @@ app/
   login/ signup/   Supabase auth
   page.tsx         cinematic landing
 components/
+  app-shell.tsx    rail, live status bar, mobile tab bar, global shortcuts
+  command-palette.tsx  ⌘K palette (pages, symbols, actions)
+  edge-report.tsx  the measured-results panel shown on the dashboard, intelligence and landing
   motion/          preloader, kinetic text, reveals, magnetic, cursor, marquee
   views/           one component per screen
   ui/glossary.tsx  plain-English definition for every number the app shows
   hero-canvas.tsx  generative live-data hero
   price-chart.tsx  lightweight-charts wrapper
 lib/
+  evaluation.ts    offline results, copied from docs/FORECAST-EVALUATION.md (single source)
   market/          providers.ts (CoinGecko/Twelve Data/Finnhub) · analysis.ts (signal +
                    forecast) · ml.ts (GARCH, plus two models the backtest rejected) ·
                    macro.ts (FRED series)
   agents/          multi-agent debate — context gathering, prompts, engine
   supabase/        client · server · config
 middleware.ts      session refresh + route guarding (public allowlist, fails closed)
+tests/             vitest suite + real captured BTC candles as a fixture
 docs/
   FORECAST-EVALUATION.md   what was measured, and what got cut for failing
+  DESIGN.md                tokens, type scale, components
+  screenshots/             current UI (and before/ for the previous design)
 ```
 
 ---
@@ -292,6 +323,6 @@ Stated plainly, because the whole point of the project is not overclaiming:
 
 MIT — see [LICENSE](LICENSE).
 
-Built by **A. Venkata Vinesh Kumar Reddy** ·
+Built by **Venkata Vinesh Kumar Reddy Atluri** ·
 [Portfolio](https://venkatavinesh.github.io/PortFolio_Build_Gem/) ·
 [LinkedIn](https://www.linkedin.com/in/venkat-vinesh)
