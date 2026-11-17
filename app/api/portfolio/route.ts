@@ -20,10 +20,15 @@ const DEMO_SEED_POSITIONS = [
 ]
 
 async function requireUser() {
+  const cookieStore = await cookies()
+  const hasAuthCookie = cookieStore.getAll().some((c) => c.name.startsWith('sb-'))
+  const demoCookie = cookieStore.get(DEMO_COOKIE)?.value === '1'
+  if (demoCookie && !hasAuthCookie) {
+    return { supabase: null, user: null, isDemo: true }
+  }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const cookieStore = await cookies()
-  const isDemo = !user && cookieStore.get(DEMO_COOKIE)?.value === '1'
+  const isDemo = !user && demoCookie
   return { supabase, user, isDemo }
 }
 
@@ -101,7 +106,7 @@ export async function GET() {
     return NextResponse.json(body)
   }
 
-  if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  if (!user || !supabase) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
   const { data: portfolio } = await supabase
     .from('portfolios').select('id, name, cash').eq('user_id', user.id).limit(1).single()
@@ -129,7 +134,7 @@ export async function POST(req: Request) {
       { status: 403 }
     )
   }
-  if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  if (!user || !supabase) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
   let body: { symbol?: string; quantity?: number; avgPrice?: number; assetType?: string }
   try {
@@ -176,7 +181,7 @@ export async function DELETE(req: Request) {
       { status: 403 }
     )
   }
-  if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  if (!user || !supabase) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
