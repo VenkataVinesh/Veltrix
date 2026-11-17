@@ -93,6 +93,9 @@ export function LandingView() {
             <span className="text-lg font-semibold tracking-tight">Veltrix</span>
           </Link>
           <nav className="flex items-center gap-2">
+            <Link href="/dashboard?demo=1" className="btn-outline hidden px-4 py-2 text-xs sm:inline-flex">
+              Live demo (no login)
+            </Link>
             <Link href="/login" className="btn-ghost px-5 py-2.5 text-sm">Log in</Link>
             <Magnetic>
               <Link href="/signup" className="btn-lime inline-flex items-center gap-1.5 px-5 py-2.5 text-sm">
@@ -136,11 +139,12 @@ export function LandingView() {
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Magnetic>
-                <Link href="/signup" className="btn-lime inline-flex items-center gap-2 px-8 py-4 text-[15px]">
-                  Open the terminal <ArrowUpRight className="h-4 w-4" />
+                <Link href="/dashboard?demo=1" className="btn-lime inline-flex items-center gap-2 px-8 py-4 text-[15px]">
+                  Explore live demo <ArrowUpRight className="h-4 w-4" />
                 </Link>
               </Magnetic>
-              <Link href="/login" className="btn-ghost px-8 py-4 text-[15px]">I have an account</Link>
+              <Link href="/signup" className="btn-outline px-6 py-4 text-[15px]">Create free account</Link>
+              <Link href="/login" className="btn-ghost px-6 py-4 text-[15px]">Log in</Link>
             </div>
           </div>
 

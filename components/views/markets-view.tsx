@@ -5,9 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Search, AlertCircle } from 'lucide-react'
 import { api } from '@/lib/api'
-import { Card, Eyebrow, EmptyState, fmtPrice } from '@/components/ui/primitives'
+import { Card, Delta, Eyebrow, EmptyState, ErrorState, fmtPrice } from '@/components/ui/primitives'
 import { CRYPTO_SYMBOLS, EQUITY_SYMBOLS } from '@/lib/market/providers'
-import { cn } from '@/lib/utils'
 
 type Filter = 'all' | 'crypto' | 'equity'
 
@@ -15,7 +14,7 @@ export function MarketsView() {
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['quotes', 'all'],
     queryFn: () => api.quotes([...CRYPTO_SYMBOLS, ...EQUITY_SYMBOLS]),
     refetchInterval: 30_000,
@@ -76,16 +75,23 @@ export function MarketsView() {
               <div key={i} className="h-12 animate-pulse rounded-xl bg-elevated" />
             ))}
           </div>
+        ) : isError ? (
+          <ErrorState
+            title="Market quotes unavailable"
+            body={(error as Error)?.message ?? 'Could not reach the quote providers.'}
+            onRetry={() => refetch()}
+          />
         ) : quotes.length ? (
           <div className="overflow-x-auto">
             <table className="terminal-table">
+              <caption className="sr-only">Market quotes by asset</caption>
               <thead>
                 <tr>
-                  <th>Asset</th>
-                  <th>Type</th>
-                  <th className="text-right">Price</th>
-                  <th className="text-right">24h change</th>
-                  <th className="text-right">Trade</th>
+                  <th scope="col">Asset</th>
+                  <th scope="col">Type</th>
+                  <th scope="col" className="text-right">Price</th>
+                  <th scope="col" className="text-right">24h change</th>
+                  <th scope="col" className="text-right">Trade</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,17 +106,17 @@ export function MarketsView() {
                     </td>
                     <td className="tnum text-right font-medium">{fmtPrice(q.price)}</td>
                     <td className="text-right">
-                      <span className={cn('tnum font-medium', q.change >= 0 ? 'text-success' : 'text-destructive')}>
-                        {q.change >= 0 ? '+' : ''}{q.change.toFixed(2)}%
-                      </span>
+                      <Delta value={q.change} className="justify-end" />
                     </td>
                     <td className="text-right">
                       {q.assetType === 'crypto' ? (
-                        <Link href="/trade" className="text-sm font-medium text-primary hover:underline">
+                        <Link href={`/trade?symbol=${q.symbol}`} className="text-sm font-medium text-primary hover:underline">
                           Trade
                         </Link>
                       ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
+                        <Link href={`/intelligence?symbol=${q.symbol}`} className="text-sm text-secondary-foreground hover:text-foreground hover:underline">
+                          Intel
+                        </Link>
                       )}
                     </td>
                   </tr>

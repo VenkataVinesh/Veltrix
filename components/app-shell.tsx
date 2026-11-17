@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LogOut, Search } from 'lucide-react'
+import { Eye, LogOut, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
 import { NAV } from '@/components/nav'
@@ -29,13 +29,19 @@ function Logo({ withName = true }: { withName?: boolean }) {
   )
 }
 
-/** Live quotes strip. Shares the ['quotes'] cache with the dashboard. */
+/** Live quotes strip. Shares the ['quotes'] cache with the dashboard and flags stale data. */
 function Ticker() {
   const { data, dataUpdatedAt, isError } = useQuery({
     queryKey: ['quotes'], queryFn: () => api.quotes(), refetchInterval: 30_000,
   })
   const prev = useRef(new Map<string, number>())
   const [flash, setFlash] = useState<Record<string, 'up' | 'down'>>({})
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 15_000)
+    return () => window.clearInterval(id)
+  }, [])
 
   useEffect(() => {
     if (!data) return
@@ -52,6 +58,7 @@ function Ticker() {
 
   const quotes = data?.quotes ?? []
   const time = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('en-GB', { hour12: false }) : null
+  const isStale = Boolean(dataUpdatedAt && now - dataUpdatedAt > 90_000)
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -73,9 +80,16 @@ function Ticker() {
         ))}
       </div>
       {time && (
-        <span className="hidden shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground md:inline-flex" title="Last successful quote refresh (every 30s)">
-          <span className="status-dot live" aria-hidden="true" />
-          <span className="tnum">{time}</span>
+        <span
+          className="hidden shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground md:inline-flex"
+          title={isStale ? `Feed stale — last refreshed at ${time}` : 'Last successful quote refresh (every 30s)'}
+        >
+          <span
+            className={cn('status-dot', isStale ? 'bg-warning' : 'live')}
+            aria-hidden="true"
+          />
+          <span className="tnum">as of {time}</span>
+          {isStale && <span className="chip chip-warn">stale</span>}
           <span className="hidden 2xl:inline">· {data?.quotes[0]?.source ?? 'feed'}</span>
         </span>
       )}
@@ -83,7 +97,15 @@ function Ticker() {
   )
 }
 
-export function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
+export function AppShell({
+  email,
+  isDemo = false,
+  children,
+}: {
+  email: string
+  isDemo?: boolean
+  children: React.ReactNode
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const [palette, setPalette] = useState(false)
@@ -91,8 +113,9 @@ export function AppShell({ email, children }: { email: string; children: React.R
   const gPending = useRef<number | null>(null)
 
   const signOut = useCallback(async () => {
+    document.cookie = 'veltrix_demo=; path=/; max-age=0'
     await createClient().auth.signOut()
-    router.push('/')
+    router.push('/?demo=0')
     router.refresh()
   }, [router])
   const closePalette = useCallback(() => setPalette(false), [])
@@ -153,10 +176,15 @@ export function AppShell({ email, children }: { email: string; children: React.R
           })}
         </nav>
         <div className="mt-auto space-y-1">
+          {isDemo && (
+            <span className="mx-2 mb-1 hidden items-center gap-1.5 rounded bg-warning/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-warning xl:inline-flex">
+              <Eye className="h-3 w-3 shrink-0" aria-hidden="true" /> Demo data
+            </span>
+          )}
           <p className="hidden truncate px-2.5 text-[11px] text-muted-foreground xl:block" title={email}>{email}</p>
-          <button onClick={signOut} className="nav-item w-full justify-center hover:text-destructive xl:justify-start" title="Sign out">
+          <button onClick={signOut} className="nav-item w-full justify-center hover:text-destructive xl:justify-start" title={isDemo ? 'Exit demo' : 'Sign out'}>
             <LogOut className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
-            <span className="sr-only xl:not-sr-only">Sign out</span>
+            <span className="sr-only xl:not-sr-only">{isDemo ? 'Exit demo' : 'Sign out'}</span>
           </button>
         </div>
       </aside>
@@ -165,6 +193,14 @@ export function AppShell({ email, children }: { email: string; children: React.R
       <header className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border bg-background/90 px-3 backdrop-blur lg:pl-[calc(3.5rem+0.75rem)] xl:pl-[calc(200px+1rem)]">
         <Link href="/dashboard" className="shrink-0 lg:hidden" aria-label="Veltrix home"><Logo withName={false} /></Link>
         <Ticker />
+        {isDemo && (
+          <span
+            className="chip chip-warn shrink-0"
+            title="Portfolio holdings are seeded demo data; market prices, signals, and forecasts come from the live feed"
+          >
+            DEMO DATA · SEEDED PORTFOLIO
+          </span>
+        )}
         <EdgeBadge />
         <button
           onClick={() => setPalette(true)}
@@ -176,6 +212,26 @@ export function AppShell({ email, children }: { email: string; children: React.R
           <span className="ml-auto hidden gap-0.5 sm:flex" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span>
         </button>
       </header>
+
+      {isDemo && (
+        <div
+          role="region"
+          aria-label="Read-only demo notice"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-elevated/70 px-3 py-1.5 text-xs text-secondary-foreground lg:pl-[calc(3.5rem+1rem)] xl:pl-[calc(200px+1.25rem)]"
+        >
+          <span>
+            <strong className="font-semibold text-warning">Read-only demo mode:</strong> portfolio holdings (0.45 BTC, 6 ETH, 55 SOL + $42.5k cash) are <strong className="text-foreground">seeded demo data</strong>; quotes, candles, signals and forecasts are computed from the live market feed.
+          </span>
+          <div className="flex items-center gap-3">
+            <Link href="/signup" className="font-semibold text-primary hover:underline">
+              Create free $100k account →
+            </Link>
+            <button onClick={signOut} className="text-muted-foreground hover:text-foreground">
+              Exit demo
+            </button>
+          </div>
+        </div>
+      )}
 
       <main id="main" className="px-3 pb-24 pt-3 sm:px-4 lg:pb-8 lg:pl-[calc(3.5rem+1rem)] lg:pr-5 lg:pt-4 xl:pl-[calc(200px+1.25rem)]">
         <div key={pathname} className="page-enter mx-auto max-w-[1600px]">
