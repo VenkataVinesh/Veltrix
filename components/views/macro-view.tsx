@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { MacroReading, MacroGroup } from '@/lib/market/macro'
-import { Card, Eyebrow, EmptyState, Skeleton } from '@/components/ui/primitives'
+import { Card, Eyebrow, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives'
 import { MacroSpark } from '@/components/macro-spark'
 import { Explain } from '@/components/ui/glossary'
 import { cn } from '@/lib/utils'
@@ -135,7 +135,7 @@ function CurveCallout({ curve }: { curve: MacroReading }) {
 }
 
 export function MacroView() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['macro'],
     queryFn: () => api.macro(),
     // Most of this is monthly data; refetching hard would just burn quota.
@@ -158,12 +158,13 @@ export function MacroView() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-3 rounded-2xl bg-destructive/10 px-5 py-4">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <p className="text-sm text-foreground">
-            Could not reach the macro endpoint. {String(error instanceof Error ? error.message : error)}
-          </p>
-        </div>
+        <Card className="p-0">
+          <ErrorState
+            title="Could not reach the macro endpoint"
+            body={String(error instanceof Error ? error.message : error)}
+            onRetry={() => refetch()}
+          />
+        </Card>
       )}
 
       {data?.unavailable && (

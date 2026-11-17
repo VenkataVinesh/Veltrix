@@ -160,5 +160,20 @@ export function PriceChart({
     } catch { /* stale handle after unmount */ }
   }, [ready, candles, mode])
 
-  return <div ref={wrapRef} style={{ width: '100%', height }} />
+  const summary = candles.length
+    ? (() => {
+        const first = candles[0].c
+        const last = candles[candles.length - 1].c
+        const hi = Math.max(...candles.map((c) => c.h))
+        const lo = Math.min(...candles.map((c) => c.l))
+        return `Price chart with ${candles.length} bars: opened at ${first.toFixed(2)}, latest close ${last.toFixed(2)}, range ${lo.toFixed(2)} to ${hi.toFixed(2)}.`
+      })()
+    : 'Empty price chart.'
+
+  return (
+    <div role="region" aria-label={summary} style={{ width: '100%', height }}>
+      <div ref={wrapRef} style={{ width: '100%', height: '100%' }} />
+      <p className="sr-only">{summary}</p>
+    </div>
+  )
 }

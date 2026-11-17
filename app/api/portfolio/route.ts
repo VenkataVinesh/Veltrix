@@ -1,36 +1,48 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getQuotes } from '@/lib/market/providers'
+import { DEMO_COOKIE } from '@/middleware'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Seeded read-only demo positions so a logged-out reviewer can inspect the
+ * portfolio and dashboard views without creating an account. Every response
+ * carries `isDemo: true` and `demoNotice` so it is explicitly labelled as
+ * seeded demo data everywhere it renders.
+ */
+const DEMO_SEED_CASH = 42_500
+const DEMO_SEED_POSITIONS = [
+  { id: 'demo-btc', symbol: 'BTC', asset_type: 'crypto' as const, quantity: 0.45, avg_price: 76_200 },
+  { id: 'demo-eth', symbol: 'ETH', asset_type: 'crypto' as const, quantity: 6.0, avg_price: 2_650 },
+  { id: 'demo-sol', symbol: 'SOL', asset_type: 'crypto' as const, quantity: 55.0, avg_price: 168 },
+]
 
 async function requireUser() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  return { supabase, user }
+  const cookieStore = await cookies()
+  const isDemo = !user && cookieStore.get(DEMO_COOKIE)?.value === '1'
+  return { supabase, user, isDemo }
 }
 
-/** Holdings marked to live prices. */
-export async function GET() {
-  const { supabase, user } = await requireUser()
-  if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
-
-  const { data: portfolio } = await supabase
-    .from('portfolios').select('id, name, cash').eq('user_id', user.id).limit(1).single()
-
-  if (!portfolio) return NextResponse.json({ positions: [], equity: 0, cash: 0, dailyPnl: 0 })
-
-  const { data: positions } = await supabase
-    .from('positions').select('id, symbol, asset_type, quantity, avg_price')
-    .eq('portfolio_id', portfolio.id)
-
-  const rows = positions ?? []
+async function enrichPositions(
+  rows: { id: string; symbol: string; asset_type: 'equity' | 'crypto'; quantity: number; avg_price: number }[],
+  cash: number,
+  meta: { portfolioId: string; name: string; isDemo?: boolean; demoNotice?: string }
+) {
   if (!rows.length) {
-    return NextResponse.json({
-      portfolioId: portfolio.id, name: portfolio.name,
-      cash: Number(portfolio.cash), positions: [], equity: Number(portfolio.cash),
-      invested: 0, marketValue: 0, unrealisedPnl: 0, unrealisedPnlPct: 0,
-    })
+    return {
+      ...meta,
+      cash,
+      positions: [],
+      equity: cash,
+      invested: 0,
+      marketValue: 0,
+      unrealisedPnl: 0,
+      unrealisedPnlPct: 0,
+    }
   }
 
   const quotes = await getQuotes([...new Set(rows.map((r) => r.symbol))])
@@ -62,22 +74,61 @@ export async function GET() {
   const marketValue = enriched.reduce((s, p) => s + p.marketValue, 0)
   const invested = enriched.reduce((s, p) => s + p.cost, 0)
 
-  return NextResponse.json({
-    portfolioId: portfolio.id,
-    name: portfolio.name,
-    cash: Number(portfolio.cash),
+  return {
+    ...meta,
+    cash,
     positions: enriched,
     marketValue: +marketValue.toFixed(2),
     invested: +invested.toFixed(2),
-    equity: +(marketValue + Number(portfolio.cash)).toFixed(2),
+    equity: +(marketValue + cash).toFixed(2),
     unrealisedPnl: +(marketValue - invested).toFixed(2),
     unrealisedPnlPct: invested > 0 ? +(((marketValue - invested) / invested) * 100).toFixed(2) : 0,
-  })
+  }
+}
+
+/** Holdings marked to live prices. */
+export async function GET() {
+  const { supabase, user, isDemo } = await requireUser()
+
+  if (!user && isDemo) {
+    const body = await enrichPositions(DEMO_SEED_POSITIONS, DEMO_SEED_CASH, {
+      portfolioId: 'demo-portfolio',
+      name: 'Seeded Demo Portfolio (Read-only)',
+      isDemo: true,
+      demoNotice:
+        'SEEDED DEMO DATA: Pre-populated paper holdings (0.45 BTC, 6 ETH, 55 SOL + $42.5k cash) marked to live CoinGecko prices.',
+    })
+    return NextResponse.json(body)
+  }
+
+  if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+
+  const { data: portfolio } = await supabase
+    .from('portfolios').select('id, name, cash').eq('user_id', user.id).limit(1).single()
+
+  if (!portfolio) return NextResponse.json({ positions: [], equity: 0, cash: 0, dailyPnl: 0 })
+
+  const { data: positions } = await supabase
+    .from('positions').select('id, symbol, asset_type, quantity, avg_price')
+    .eq('portfolio_id', portfolio.id)
+
+  const body = await enrichPositions(
+    (positions ?? []) as { id: string; symbol: string; asset_type: 'equity' | 'crypto'; quantity: number; avg_price: number }[],
+    Number(portfolio.cash),
+    { portfolioId: portfolio.id, name: portfolio.name, isDemo: false }
+  )
+  return NextResponse.json(body)
 }
 
 /** Add a position. */
 export async function POST(req: Request) {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, isDemo } = await requireUser()
+  if (!user && isDemo) {
+    return NextResponse.json(
+      { error: 'Demo mode is read-only. Create a free account to place paper trades or edit positions.' },
+      { status: 403 }
+    )
+  }
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
   let body: { symbol?: string; quantity?: number; avgPrice?: number; assetType?: string }
@@ -118,7 +169,13 @@ export async function POST(req: Request) {
 
 /** Remove a position (RLS scopes the delete to the caller's own rows). */
 export async function DELETE(req: Request) {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, isDemo } = await requireUser()
+  if (!user && isDemo) {
+    return NextResponse.json(
+      { error: 'Demo mode is read-only. Create a free account to remove positions.' },
+      { status: 403 }
+    )
+  }
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
   const id = new URL(req.url).searchParams.get('id')

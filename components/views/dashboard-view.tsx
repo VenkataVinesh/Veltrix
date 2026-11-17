@@ -124,14 +124,19 @@ export function DashboardView() {
           <div className="col-span-full bg-card"><ErrorState title="Portfolio unavailable" body={(portfolioQ.error as Error).message} onRetry={() => portfolioQ.refetch()} /></div>
         ) : (
           <>
-            <Kpi label="Equity" term="portfolioValue" value={fmtUsd(portfolio?.equity ?? 0)} sub={`${positions.length} position${positions.length === 1 ? '' : 's'} · paper`} />
+            <Kpi
+              label="Equity"
+              term="portfolioValue"
+              value={fmtUsd(portfolio?.equity ?? 0)}
+              sub={`${positions.length} position${positions.length === 1 ? '' : 's'} · ${portfolio?.isDemo ? 'seeded demo' : 'paper'}`}
+            />
             <Kpi
               label="Unrealised P&L" term="unrealisedPnl"
               value={`${pnl >= 0 ? '+' : '−'}${fmtUsd(Math.abs(pnl))}`}
               tone={positions.length ? (pnl >= 0 ? 'text-success' : 'text-destructive') : undefined}
               sub={positions.length ? <Delta value={portfolio?.unrealisedPnlPct ?? 0} /> : 'no open positions'}
             />
-            <Kpi label="Cash" term="invested" value={fmtUsd(portfolio?.cash ?? 0, 0)} sub={`invested ${fmtUsd(portfolio?.invested ?? 0, 0)}`} />
+            <Kpi label="Cash" term="invested" value={fmtUsd(portfolio?.cash ?? 0, 0)} sub={`invested ${fmtUsd(portfolio?.invested ?? 0, 0)}${portfolio?.isDemo ? ' · seeded' : ''}`} />
             <Kpi
               label="BTC composite" term="compositeSignal"
               value={signal?.signal ?? (signalQ.isLoading ? '…' : '—')}
@@ -223,8 +228,9 @@ export function DashboardView() {
           ) : quotes.length ? (
             <div className="overflow-x-auto">
               <table className="terminal-table">
+                <caption className="sr-only">Live market quotes</caption>
                 <thead>
-                  <tr><th>Asset</th><th className="text-right">Last</th><th className="text-right">24h</th><th className="hidden text-right sm:table-cell">Source</th></tr>
+                  <tr><th scope="col">Asset</th><th scope="col" className="text-right">Last</th><th scope="col" className="text-right">24h</th><th scope="col" className="hidden text-right sm:table-cell">Source</th></tr>
                 </thead>
                 <tbody>
                   {quotes.slice(0, 8).map((q) => (

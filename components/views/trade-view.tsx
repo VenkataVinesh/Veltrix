@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDownUp, Loader2, Check } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PriceChart, type Candle } from '@/components/price-chart'
-import { Card, Eyebrow, DeltaChip, EmptyState, Skeleton, fmtPrice, fmtUsd, fmtCompact } from '@/components/ui/primitives'
+import { Card, Eyebrow, DeltaChip, EmptyState, ErrorState, Skeleton, fmtPrice, fmtUsd, fmtCompact } from '@/components/ui/primitives'
 import { InfoTip } from '@/components/ui/glossary'
 import { cn } from '@/lib/utils'
 import { useSymbolParam } from '@/lib/use-symbol-param'
@@ -35,7 +35,7 @@ export function TradeView() {
     queryFn: () => api.quotes(SYMBOLS.includes(symbol) ? SYMBOLS : [...SYMBOLS, symbol]),
     refetchInterval: 30_000,
   })
-  const { data: candleData, isLoading } = useQuery({
+  const { data: candleData, isLoading, isError: candleIsError, error: candleError, refetch: refetchCandles } = useQuery({
     queryKey: ['candles', symbol, days],
     queryFn: () => api.candles(symbol, days),
   })
@@ -115,6 +115,12 @@ export function TradeView() {
           <div className="px-2 pb-4" onMouseLeave={() => setHover(null)}>
             {isLoading ? (
               <Skeleton className="mx-2.5 my-2 h-[380px] xl:h-[460px]" />
+            ) : candleIsError ? (
+              <ErrorState
+                title="Chart data failed to load"
+                body={(candleError as Error)?.message ?? 'Could not reach the candle provider.'}
+                onRetry={() => refetchCandles()}
+              />
             ) : candles.length ? (
               <div className="h-[380px] xl:h-[460px]"><PriceChart candles={candles} mode={mode} height="100%" onHover={setHover} /></div>
             ) : (
@@ -210,12 +216,16 @@ export function TradeView() {
 
             <button
               onClick={() => trade.mutate()}
-              disabled={blocked || trade.isPending || side === 'sell'}
+              disabled={blocked || trade.isPending || side === 'sell' || Boolean(portfolio?.isDemo)}
               className="btn-lime mt-4 flex w-full items-center justify-center gap-2 py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {trade.isPending ? <Loader2 className="h-4 w-4 animate-spin" />
                 : trade.isSuccess ? <Check className="h-4 w-4" /> : null}
-              {side === 'buy' ? `Buy ${symbol}` : 'Sell (coming soon)'}
+              {portfolio?.isDemo
+                ? 'Read-only in demo mode'
+                : side === 'buy'
+                  ? `Buy ${symbol}`
+                  : 'Sell (coming soon)'}
             </button>
 
             <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">

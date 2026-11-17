@@ -140,6 +140,16 @@ export function AuthForm({ mode }: { mode: Mode }) {
           {isSignup ? 'Log in' : 'Sign up free'}
         </Link>
       </p>
+
+      <div className="mt-6 border-t border-border pt-5">
+        <Link
+          href="/dashboard?demo=1"
+          className="btn-outline flex w-full items-center justify-center gap-2 py-3 text-sm"
+        >
+          Explore read-only demo (seeded portfolio, no login)
+          <ArrowUpRight className="h-4 w-4" />
+        </Link>
+      </div>
     </div>
   )
 }

@@ -36,6 +36,9 @@ export interface PortfolioResponse {
   equity: number
   unrealisedPnl: number
   unrealisedPnlPct: number
+  /** True when serving the read-only seeded demo portfolio to a logged-out visitor. */
+  isDemo?: boolean
+  demoNotice?: string
 }
 
 export const api = {

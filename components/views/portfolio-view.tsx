@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import Link from 'next/link'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
 import { api } from '@/lib/api'
-import { Card, Eyebrow, Stat, EmptyState, fmtUsd, fmtPrice } from '@/components/ui/primitives'
+import { Card, Eyebrow, Stat, EmptyState, ErrorState, fmtUsd, fmtPrice } from '@/components/ui/primitives'
 import { CRYPTO_SYMBOLS, EQUITY_SYMBOLS } from '@/lib/market/providers'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +16,7 @@ export function PortfolioView() {
   const [quantity, setQuantity] = useState('')
   const [avgPrice, setAvgPrice] = useState('')
 
-  const { data, isLoading } = useQuery({ queryKey: ['portfolio'], queryFn: api.portfolio })
+  const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: ['portfolio'], queryFn: api.portfolio })
 
   const add = useMutation({
     mutationFn: () =>
@@ -43,13 +44,25 @@ export function PortfolioView() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Eyebrow>Holdings</Eyebrow>
+          <Eyebrow>{data?.isDemo ? 'Holdings · Seeded demo data' : 'Holdings'}</Eyebrow>
           <h1 className="mt-1 text-lg font-semibold tracking-tight">Portfolio</h1>
         </div>
-        <button onClick={() => setOpen(true)} className="btn-lime inline-flex items-center gap-2 px-5 py-2.5 text-sm">
-          <Plus className="h-4 w-4" /> Add position
-        </button>
+        {data?.isDemo ? (
+          <Link href="/signup" className="btn-lime inline-flex items-center gap-2 px-5 py-2.5 text-sm">
+            Sign up to manage your own portfolio
+          </Link>
+        ) : (
+          <button onClick={() => setOpen(true)} className="btn-lime inline-flex items-center gap-2 px-5 py-2.5 text-sm">
+            <Plus className="h-4 w-4" /> Add position
+          </button>
+        )}
       </div>
+
+      {data?.isDemo && (
+        <div role="note" className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-secondary-foreground">
+          <strong className="font-semibold text-warning">Seeded demo data:</strong> {data.demoNotice}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Total equity" term="portfolioValue" value={fmtUsd(data?.equity ?? 0)} sub={`cash ${fmtUsd(data?.cash ?? 0, 0)}`} />
@@ -70,18 +83,25 @@ export function PortfolioView() {
               <div key={i} className="h-12 animate-pulse rounded-xl bg-elevated" />
             ))}
           </div>
+        ) : isError ? (
+          <ErrorState
+            title="Portfolio unavailable"
+            body={(error as Error)?.message ?? 'Could not load holdings.'}
+            onRetry={() => refetch()}
+          />
         ) : positions.length ? (
           <div className="overflow-x-auto">
             <table className="terminal-table">
+              <caption className="sr-only">Portfolio positions</caption>
               <thead>
                 <tr>
-                  <th>Asset</th>
-                  <th className="text-right">Quantity</th>
-                  <th className="text-right">Avg price</th>
-                  <th className="text-right">Last</th>
-                  <th className="text-right">Market value</th>
-                  <th className="text-right">P&amp;L</th>
-                  <th />
+                  <th scope="col">Asset</th>
+                  <th scope="col" className="text-right">Quantity</th>
+                  <th scope="col" className="text-right">Avg price</th>
+                  <th scope="col" className="text-right">Last</th>
+                  <th scope="col" className="text-right">Market value</th>
+                  <th scope="col" className="text-right">P&amp;L</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +160,7 @@ export function PortfolioView() {
           role="dialog"
           aria-modal="true"
           aria-label="Add position"
+          onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
         >
           <Card className="w-full max-w-md">

@@ -5,10 +5,25 @@ import { GET as getSignalRoute } from '@/app/api/signal/route'
 import { GET as getForecastRoute } from '@/app/api/forecast/route'
 import { GET as getMacroRoute } from '@/app/api/macro/route'
 import { GET as getAgentsRoute } from '@/app/api/agents/route'
+import { GET as getPortfolioRoute, POST as postPortfolioRoute, DELETE as deletePortfolioRoute } from '@/app/api/portfolio/route'
 import candlesFixture from './fixtures/btc-30d-2026-11-04.json'
 import liveSignal from './fixtures/btc-signal-2026-11-04.json'
 
+const mockCookieStore = {
+  demo: false,
+}
+
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    getAll: () => (mockCookieStore.demo ? [{ name: 'veltrix_demo', value: '1' }] : []),
+    get: (name: string) =>
+      name === 'veltrix_demo' && mockCookieStore.demo ? { name: 'veltrix_demo', value: '1' } : undefined,
+    set: () => {},
+  }),
+}))
+
 afterEach(() => {
+  mockCookieStore.demo = false
   vi.restoreAllMocks()
 })
 
@@ -92,5 +107,46 @@ describe('API route resilience & honest unavailability', () => {
     expect(okBody.degraded).toBe(true)
     expect(okBody.quantSignal).toBe(liveSignal.signal)
     expect(okBody.analysts).toEqual([])
+  })
+
+  it('/api/portfolio serves clearly-labelled seeded holdings in demo mode and blocks writes with 403', async () => {
+    mockCookieStore.demo = true
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/auth/v1/user')) {
+        return new Response(JSON.stringify({ message: 'no session' }), { status: 401 })
+      }
+      if (url.includes('/simple/price')) {
+        return new Response(
+          JSON.stringify({
+            bitcoin: { usd: 80000, usd_24h_change: 1.5 },
+            ethereum: { usd: 2800, usd_24h_change: 0.8 },
+            solana: { usd: 180, usd_24h_change: 2.1 },
+          }),
+          { status: 200 }
+        )
+      }
+      return new Response('{}', { status: 404 })
+    })
+
+    const getRes = await getPortfolioRoute()
+    const getBody = await getRes.json()
+    expect(getRes.status).toBe(200)
+    expect(getBody.isDemo).toBe(true)
+    expect(getBody.demoNotice).toContain('SEEDED DEMO DATA')
+    expect(getBody.positions).toHaveLength(3)
+
+    const postRes = await postPortfolioRoute(
+      new Request('http://localhost:3000/api/portfolio', {
+        method: 'POST',
+        body: JSON.stringify({ symbol: 'BTC', quantity: 1, avgPrice: 80000 }),
+      })
+    )
+    expect(postRes.status).toBe(403)
+
+    const delRes = await deletePortfolioRoute(
+      new Request('http://localhost:3000/api/portfolio?id=demo-btc', { method: 'DELETE' })
+    )
+    expect(delRes.status).toBe(403)
   })
 })

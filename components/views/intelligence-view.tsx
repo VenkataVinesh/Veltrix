@@ -7,7 +7,7 @@ import {
   AlertTriangle, Loader2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { Card, Eyebrow, EmptyState, Skeleton, fmtUsd, fmtPrice } from '@/components/ui/primitives'
+import { Card, Eyebrow, EmptyState, ErrorState, Skeleton, fmtUsd, fmtPrice } from '@/components/ui/primitives'
 import { ForecastChart } from '@/components/forecast-chart'
 import { cn } from '@/lib/utils'
 import { InfoTip, GlossaryPanel } from '@/components/ui/glossary'
@@ -158,6 +158,12 @@ export function IntelligenceView() {
 
         {forecast.isLoading ? (
           <Skeleton className="m-4 h-[320px]" />
+        ) : forecast.isError ? (
+          <ErrorState
+            title="Forecast failed to compute"
+            body={(forecast.error as Error)?.message ?? 'Could not reach the forecast endpoint.'}
+            onRetry={() => forecast.refetch()}
+          />
         ) : fUnavailable ? (
           <div className="p-6">
             <EmptyState
