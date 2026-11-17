@@ -24,10 +24,10 @@ the README cannot be read as overclaiming:
 | TradingAgents component | In Veltrix |
 | --- | --- |
 | Four specialist analysts | Yes |
-| Bull vs bear researcher debate | Yes, **single round** |
+| Bull vs bear researcher debate | Yes, **two rounds** |
 | Trader synthesis | Yes |
 | Risk manager with veto and position sizing | Yes, **single manager** |
-| Multi-round rebuttal between researchers | No |
+| Multi-round rebuttal between researchers | Yes, **two rounds with conviction drift** |
 | Agent memory / reflection across runs | No |
 | Risk *team* debate (aggressive/neutral/conservative) | No |
 | LangGraph runtime | No — plain async orchestration |

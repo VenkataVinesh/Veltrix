@@ -41,6 +41,8 @@ const ALPHAVANTAGE = process.env.ALPHAVANTAGE_API_KEY?.trim() || ''
 /** Quotes need only Finnhub; history needs Twelve Data (or the AV fallback). */
 export const hasEquityProvider = () =>
   FINNHUB.length > 0 || TWELVEDATA.length > 0
+export const activeEquityProvider = (): 'finnhub' | 'twelvedata' | null =>
+  FINNHUB.length > 0 ? 'finnhub' : TWELVEDATA.length > 0 ? 'twelvedata' : null
 export const hasEquityHistory = () =>
   TWELVEDATA.length > 0 || ALPHAVANTAGE.length > 0
 
