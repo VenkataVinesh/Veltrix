@@ -33,12 +33,22 @@ export const CALIBRATION = {
   target: 0.95,
   /** 1,200 held-out 5-day forecasts. */
   tests: 1200,
-  ewma: { coverage: 0.9167, widthPct: 16.23 },
-  garch: { coverage: 0.9475, widthPct: 17.84 },
+  ewma: { coverage: 0.9167, widthPct: 16.23, kupiecLr: 24.93, kupiecP: 0.0001 },
+  garch: { coverage: 0.9475, widthPct: 17.84, kupiecLr: 0.16, kupiecP: 0.6934 },
 }
 
 export const REJECTED_MODELS = {
-  models: ['Ridge regression (11 features)', 'Gradient-boosted stumps'],
+  models: [
+    'Ridge regression (11 features)',
+    'Gradient-boosted stumps',
+    'Kalman state-space filter',
+    'Seasonal-naive (5d lag)',
+  ],
+  intervalModels: [
+    'GJR-GARCH(1,1,1) (94.67% cov, 2.5× slower)',
+    'Split-conformal GARCH (93.08% cov, Kupiec p = 0.004)',
+    'Parkinson HAR-RV (91.67% cov, misses overnight gaps)',
+  ],
   slowdown: '123–443×',
 }
 

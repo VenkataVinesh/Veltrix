@@ -79,8 +79,9 @@ export function EdgeReport({ compact = false, className }: { compact?: boolean; 
           </div>
           {!compact && (
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              {REJECTED_MODELS.models.join(' and ')} were built, backtested and cut: no
-              better than this, and {REJECTED_MODELS.slowdown} slower.
+              {REJECTED_MODELS.models.join(', ')} were built, backtested and cut: none beat a
+              50% coin flip after Holm-Bonferroni multiple-testing correction (p = 1.00), and the
+              learned models ran {REJECTED_MODELS.slowdown} slower.
             </p>
           )}
         </div>
@@ -96,7 +97,7 @@ export function EdgeReport({ compact = false, className }: { compact?: boolean; 
             <span className="chip chip-up">CALIBRATED</span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">
-            coverage over {CALIBRATION.tests.toLocaleString('en-US')} held-out 5-day forecasts, target 95%
+            coverage over {CALIBRATION.tests.toLocaleString('en-US')} held-out 5-day forecasts · Kupiec POF LR = {CALIBRATION.garch.kupiecLr} (p = {CALIBRATION.garch.kupiecP.toFixed(2)})
           </p>
 
           <dl className="mt-4 space-y-2.5">
@@ -121,8 +122,8 @@ export function EdgeReport({ compact = false, className }: { compact?: boolean; 
           </dl>
           {!compact && (
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              EWMA was overconfident: its &ldquo;95%&rdquo; band let the price escape about twice as often as
-              advertised. Use the band, not the midline.
+              EWMA failed Kupiec&rsquo;s coverage test (LR = {CALIBRATION.ewma.kupiecLr}, p &lt; 0.001); GJR-GARCH,
+              Parkinson HAR-RV and split-conformal bands were also benchmarked (`npm run evaluate`). Use the band, not the midline.
             </p>
           )}
         </div>

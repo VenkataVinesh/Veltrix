@@ -1,0 +1,226 @@
+{
+  "protocol": {
+    "preRegistered": true,
+    "fixture": "tests/fixtures/equities-daily-2026-11-04.json",
+    "symbols": [
+      "AAPL",
+      "NVDA",
+      "MSFT",
+      "TSLA",
+      "SPY",
+      "AMZN"
+    ],
+    "barsPerSymbol": 600,
+    "capturedThrough": "2026-11-04",
+    "directionalStepsPerSymbol": 250,
+    "totalDirectionalCalls": 1500,
+    "intervalStepsPerSymbol": 200,
+    "intervalHorizonDays": 5,
+    "totalIntervalForecasts": 1200,
+    "directionalDecisionRule": "Keep candidate model in production ensemble only if pooled out-of-sample hit-rate > 52.0% with Holm-Bonferroni FWER-adjusted p < 0.05 across M=7 trials and latency < 50ms/symbol.",
+    "intervalDecisionRule": "Keep volatility/interval model only if it passes Kupiec (1995) POF test at 95% nominal coverage (LR_POF <= 3.8415, p >= 0.05) and improves Winkler proper interval score and QLIKE loss over GARCH(1,1) within <50ms."
+  },
+  "directionalModels": [
+    {
+      "id": "baseline_ensemble",
+      "label": "Baseline Ensemble (drift_ewma + ar + naive)",
+      "correct": 735,
+      "directionalCalls": 1500,
+      "hitRate": 0.49,
+      "sePp": 1.29,
+      "ci95": [
+        0.4647,
+        0.5153
+      ],
+      "z": -0.77,
+      "rawPValue": 0.4413,
+      "holmPValue": 1,
+      "meanLatencyMs": 48.6,
+      "decision": "KEEP (baseline)"
+    },
+    {
+      "id": "drift_ewma",
+      "label": "Drift + EWMA (0.5x shrinkage)",
+      "correct": 724,
+      "directionalCalls": 1500,
+      "hitRate": 0.4827,
+      "sePp": 1.29,
+      "ci95": [
+        0.4574,
+        0.508
+      ],
+      "z": -1.34,
+      "rawPValue": 0.1802,
+      "holmPValue": 1,
+      "meanLatencyMs": 3,
+      "decision": "KEEP (baseline)"
+    },
+    {
+      "id": "ar",
+      "label": "AR(5) via OLS normal equations",
+      "correct": 755,
+      "directionalCalls": 1500,
+      "hitRate": 0.5033,
+      "sePp": 1.29,
+      "ci95": [
+        0.478,
+        0.5286
+      ],
+      "z": 0.26,
+      "rawPValue": 0.7949,
+      "holmPValue": 1,
+      "meanLatencyMs": 18,
+      "decision": "KEEP (baseline)"
+    },
+    {
+      "id": "seasonal_naive",
+      "label": "Seasonal-Naive (5-day weekly return lag)",
+      "correct": 764,
+      "directionalCalls": 1500,
+      "hitRate": 0.5093,
+      "sePp": 1.29,
+      "ci95": [
+        0.484,
+        0.5346
+      ],
+      "z": 0.72,
+      "rawPValue": 0.4715,
+      "holmPValue": 1,
+      "meanLatencyMs": 2.9,
+      "decision": "CUT"
+    },
+    {
+      "id": "kalman",
+      "label": "Kalman State-Space (1D local-level return filter)",
+      "correct": 725,
+      "directionalCalls": 1500,
+      "hitRate": 0.4833,
+      "sePp": 1.29,
+      "ci95": [
+        0.458,
+        0.5086
+      ],
+      "z": -1.29,
+      "rawPValue": 0.1971,
+      "holmPValue": 1,
+      "meanLatencyMs": 3.3,
+      "decision": "CUT"
+    },
+    {
+      "id": "ridge",
+      "label": "Ridge Regression (11 features, L2 = 1.0)",
+      "correct": 737,
+      "directionalCalls": 1500,
+      "hitRate": 0.4913,
+      "sePp": 1.29,
+      "ci95": [
+        0.466,
+        0.5166
+      ],
+      "z": -0.67,
+      "rawPValue": 0.5029,
+      "holmPValue": 1,
+      "meanLatencyMs": 286,
+      "decision": "CUT"
+    },
+    {
+      "id": "gbm",
+      "label": "Gradient-Boosted Stumps (25 trees, lr = 0.08)",
+      "correct": 734,
+      "directionalCalls": 1500,
+      "hitRate": 0.4893,
+      "sePp": 1.29,
+      "ci95": [
+        0.464,
+        0.5146
+      ],
+      "z": -0.83,
+      "rawPValue": 0.4065,
+      "holmPValue": 1,
+      "meanLatencyMs": 6496.5,
+      "decision": "CUT"
+    }
+  ],
+  "intervalModels": [
+    {
+      "id": "ewma",
+      "label": "RiskMetrics EWMA (lambda = 0.94)",
+      "tests": 1200,
+      "covered": 1120,
+      "coverage": 0.9333,
+      "meanWidthPct": 17.2,
+      "winklerScorePct": 26.9,
+      "qlike": -5.2437,
+      "kupiecLrPof": 6.3821,
+      "kupiecPValue": 0.0115,
+      "kupiecRejected": true,
+      "christoffersenPValueInd": 0,
+      "msPerForecast": 0.02,
+      "decision": "CUT / BENCHMARK"
+    },
+    {
+      "id": "garch",
+      "label": "GARCH(1,1) (Variance-targeted Gaussian MLE)",
+      "tests": 1200,
+      "covered": 1137,
+      "coverage": 0.9475,
+      "meanWidthPct": 18.07,
+      "winklerScorePct": 26.54,
+      "qlike": -5.2448,
+      "kupiecLrPof": 0.1555,
+      "kupiecPValue": 0.6934,
+      "kupiecRejected": false,
+      "christoffersenPValueInd": 0,
+      "msPerForecast": 0.76,
+      "decision": "KEEP (ships)"
+    },
+    {
+      "id": "gjr_garch",
+      "label": "GJR-GARCH(1,1,1) (Asymmetric leverage effect)",
+      "tests": 1200,
+      "covered": 1136,
+      "coverage": 0.9467,
+      "meanWidthPct": 18.13,
+      "winklerScorePct": 26.67,
+      "qlike": -5.2356,
+      "kupiecLrPof": 0.275,
+      "kupiecPValue": 0.6,
+      "kupiecRejected": false,
+      "christoffersenPValueInd": 0,
+      "msPerForecast": 1.93,
+      "decision": "CUT / BENCHMARK"
+    },
+    {
+      "id": "har_rv",
+      "label": "Parkinson HAR-RV (Corsi 1d/5d/22d high-low range)",
+      "tests": 1200,
+      "covered": 1100,
+      "coverage": 0.9167,
+      "meanWidthPct": 14.98,
+      "winklerScorePct": 26.33,
+      "qlike": -5.2363,
+      "kupiecLrPof": 23.5853,
+      "kupiecPValue": 0,
+      "kupiecRejected": true,
+      "christoffersenPValueInd": 0,
+      "msPerForecast": 0.33,
+      "decision": "CUT / BENCHMARK"
+    },
+    {
+      "id": "garch_conformal",
+      "label": "GARCH(1,1) + Split-Conformal residual quantile",
+      "tests": 1200,
+      "covered": 1117,
+      "coverage": 0.9308,
+      "meanWidthPct": 18.23,
+      "winklerScorePct": 27.54,
+      "qlike": -5.2448,
+      "kupiecLrPof": 8.3335,
+      "kupiecPValue": 0.0039,
+      "kupiecRejected": true,
+      "christoffersenPValueInd": 0,
+      "msPerForecast": 0.8,
+      "decision": "CUT / BENCHMARK"
+    }
+  ]
+}

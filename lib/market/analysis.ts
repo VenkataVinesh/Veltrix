@@ -11,7 +11,9 @@
 import type { Candle } from './providers'
 import {
   buildDataset, latestFeatures, ridgeFit, ridgePredict, gbFit, gbPredict,
-  garchFit, garchPath, FEATURE_WARMUP,
+  garchFit, garchPath, gjrGarchFit, gjrGarchPath, harRvFit, harRvPath,
+  conformalGarchMultiplier, kalmanReturnForecast, seasonalNaiveReturn,
+  FEATURE_WARMUP,
 } from './ml'
 
 /* ── Indicators ────────────────────────────────────────────────── */
@@ -296,17 +298,30 @@ function arForecast(r: number[], horizon: number, coefs: number[]): number[] {
   return out
 }
 
-export type ModelName = 'drift_ewma' | 'ar' | 'naive' | 'ridge' | 'gbm'
+export type ModelName =
+  | 'drift_ewma'
+  | 'ar'
+  | 'naive'
+  | 'seasonal_naive'
+  | 'kalman'
+  | 'ridge'
+  | 'gbm'
+
+export type VolatilityModelName =
+  | 'garch'
+  | 'gjr_garch'
+  | 'har_rv'
+  | 'garch_conformal'
+  | 'ewma'
 
 /**
  * What actually ships.
  *
- * Ridge and gradient-boosted stumps are implemented in ./ml and are NOT here,
- * because they were measured and did not earn a place. Against the same
- * candles they moved ensemble RMSE by less than 0.5% (mixed sign), pulled
- * every symbol's hit-rate toward a flat 50% — the shrinkage you get from
- * averaging more near-random predictors, not skill — and cost ~4.5s per
- * forecast against ~15ms, because each walk-forward step refits from scratch.
+ * Ridge, gradient-boosted stumps, Kalman state-space, and seasonal-naive
+ * are implemented in ./ml and are NOT here, because they were measured
+ * under the pre-registered walk-forward protocol and did not earn a place:
+ * none beat a 50% coin flip after multiple-testing correction, and the
+ * tree/ridge models cost 123–443× more latency.
  *
  * They remain reachable through ForecastOptions.allow so the comparison is
  * reproducible rather than a claim you have to take on faith. See
@@ -315,12 +330,22 @@ export type ModelName = 'drift_ewma' | 'ar' | 'naive' | 'ridge' | 'gbm'
 export const BASELINE_MODELS: ModelName[] = ['drift_ewma', 'ar', 'naive']
 /** Baseline plus the learned models — benchmarking only. */
 export const ALL_MODELS: ModelName[] = [...BASELINE_MODELS, 'ridge', 'gbm']
+/** Full candidate pool including structural baselines — benchmarking only. */
+export const CANDIDATE_MODELS: ModelName[] = [
+  ...BASELINE_MODELS,
+  'seasonal_naive',
+  'kalman',
+  'ridge',
+  'gbm',
+]
 
-function oneStep(prices: number[], model: ModelName, vols: number[] = []): number {
+export function oneStep(prices: number[], model: ModelName, vols: number[] = []): number {
   const lastPrice = prices[prices.length - 1]
   if (model === 'naive') return lastPrice
   const r = logReturns(prices)
   if (model === 'drift_ewma') return lastPrice * Math.exp(drift(r))
+  if (model === 'seasonal_naive') return lastPrice * Math.exp(seasonalNaiveReturn(r, 5))
+  if (model === 'kalman') return lastPrice * Math.exp(kalmanReturnForecast(r))
 
   if (model === 'ridge' || model === 'gbm') {
     const { X, y } = buildDataset(prices, vols)
@@ -370,9 +395,11 @@ function walkForwardEnsemble(
 
     const tv = vols.slice(0, i)
     const pred =
-      oneStep(train, 'drift_ewma', tv) * (weights.drift_ewma ?? 0) +
-      oneStep(train, 'ar', tv) * (weights.ar ?? 0) +
+      (weights.drift_ewma ? oneStep(train, 'drift_ewma', tv) * weights.drift_ewma : 0) +
+      (weights.ar ? oneStep(train, 'ar', tv) * weights.ar : 0) +
       last * (weights.naive ?? 0) +
+      (weights.seasonal_naive ? oneStep(train, 'seasonal_naive', tv) * weights.seasonal_naive : 0) +
+      (weights.kalman ? oneStep(train, 'kalman', tv) * weights.kalman : 0) +
       (weights.ridge ? oneStep(train, 'ridge', tv) * weights.ridge : 0) +
       (weights.gbm ? oneStep(train, 'gbm', tv) * weights.gbm : 0)
 
@@ -447,6 +474,8 @@ export interface ForecastOptions {
   steps?: number
   /** Force EWMA bands even where GARCH would fit — for calibration comparisons. */
   noGarch?: boolean
+  /** Select specific volatility/interval model for calibration benchmarking. */
+  volModel?: VolatilityModelName
 }
 
 export function computeForecast(
@@ -458,6 +487,8 @@ export function computeForecast(
   const allow = opts.allow ?? BASELINE_MODELS
   const steps = opts.steps ?? 40
   const prices = candles.map((c) => c.c)
+  const highs = candles.map((c) => c.h)
+  const lows = candles.map((c) => c.l)
   const vols = candles.map((c) => c.v)
   if (prices.length < AR_ORDER + 20) return null
 
@@ -465,12 +496,27 @@ export function computeForecast(
   const lastT = candles[candles.length - 1].t
   const r = logReturns(prices)
 
-  // GARCH(1,1) where there is enough history, EWMA otherwise. Unlike EWMA,
-  // GARCH mean-reverts to a long-run variance, so a multi-day band stops
-  // inheriting whatever regime the last few bars happened to be in.
-  const garch = opts.noGarch ? null : garchFit(r)
-  const garchBand = garch ? garchPath(garch, horizon).cumulative : null
+  // GARCH(1,1) where there is enough history, EWMA otherwise — or whichever
+  // candidate volatility model was requested for calibration benchmarking.
+  const requestedVol: VolatilityModelName = opts.noGarch ? 'ewma' : (opts.volModel ?? 'garch')
+  const garch = requestedVol === 'garch' || requestedVol === 'garch_conformal' ? garchFit(r) : null
+  const gjr = requestedVol === 'gjr_garch' ? gjrGarchFit(r) : null
+  const har = requestedVol === 'har_rv' ? harRvFit(highs, lows, prices) : null
+
   const sigma = Math.max(ewmaSigma(r), 1e-6)
+  let volBand: number[] | null = null
+  let bandMultiplier = Z95
+
+  if (requestedVol === 'garch_conformal' && garch) {
+    volBand = garchPath(garch, horizon).cumulative
+    bandMultiplier = conformalGarchMultiplier(r, garch, Math.min(horizon, 5), 0.95)
+  } else if (garch) {
+    volBand = garchPath(garch, horizon).cumulative
+  } else if (gjr) {
+    volBand = gjrGarchPath(gjr, horizon).cumulative
+  } else if (har) {
+    volBand = harRvPath(har, horizon).cumulative
+  }
 
   const mu = drift(r)
   const driftPath = Array.from({ length: horizon }, (_, i) => lastPrice * Math.exp(mu * (i + 1)))
@@ -488,10 +534,10 @@ export function computeForecast(
   }
   const naivePath = new Array(horizon).fill(lastPrice)
 
-  /* Recursive multi-step for the learned models: predict one bar, append
+  /* Recursive multi-step for iterative models: predict one bar, append
      the implied price, rebuild features, repeat. Error compounds with
      horizon — which is exactly what the widening band is there to say. */
-  const learnedPath = (model: 'ridge' | 'gbm'): number[] => {
+  const iterativePath = (model: ModelName): number[] => {
     const p = [...prices]
     const v = [...vols]
     const out: number[] = []
@@ -506,13 +552,19 @@ export function computeForecast(
 
   const enoughForLearned = prices.length >= FEATURE_WARMUP + 60
   const useLearned = enoughForLearned && (allow.includes('ridge') || allow.includes('gbm'))
-  const ridgePath = useLearned ? learnedPath('ridge') : new Array(horizon).fill(lastPrice)
-  const gbmPath = useLearned ? learnedPath('gbm') : new Array(horizon).fill(lastPrice)
+  const ridgePath = useLearned && allow.includes('ridge') ? iterativePath('ridge') : new Array(horizon).fill(lastPrice)
+  const gbmPath = useLearned && allow.includes('gbm') ? iterativePath('gbm') : new Array(horizon).fill(lastPrice)
+  const seasonalPath = allow.includes('seasonal_naive') ? iterativePath('seasonal_naive') : new Array(horizon).fill(lastPrice)
+  const kalmanPath = allow.includes('kalman') ? iterativePath('kalman') : new Array(horizon).fill(lastPrice)
 
   // Inverse-RMSE weights — a model only earns weight by predicting held-out data better
-  const models: ModelName[] = (useLearned ? ALL_MODELS : BASELINE_MODELS).filter((m) =>
-    allow.includes(m)
-  )
+  const pool: ModelName[] = [
+    ...BASELINE_MODELS,
+    'seasonal_naive',
+    'kalman',
+    ...(useLearned ? (['ridge', 'gbm'] as ModelName[]) : []),
+  ]
+  const models: ModelName[] = pool.filter((m) => allow.includes(m))
   const metrics = Object.fromEntries(models.map((m) => [m, walkForward(prices, m, steps, vols)])) as Record<
     ModelName,
     ReturnType<typeof walkForward>
@@ -529,9 +581,11 @@ export function computeForecast(
       driftPath[i] * (w.drift_ewma ?? 0) +
       arPath[i] * (w.ar ?? 0) +
       naivePath[i] * (w.naive ?? 0) +
+      seasonalPath[i] * (w.seasonal_naive ?? 0) +
+      kalmanPath[i] * (w.kalman ?? 0) +
       ridgePath[i] * (w.ridge ?? 0) +
       gbmPath[i] * (w.gbm ?? 0)
-    const half = Z95 * (garchBand ? garchBand[i] : sigma * Math.sqrt(i + 1))
+    const half = bandMultiplier * (volBand ? volBand[i] : sigma * Math.sqrt(i + 1))
     return {
       t: lastT + (i + 1) * 86400,
       mid: +mid.toFixed(2),
