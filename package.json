@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "evaluate": "node scripts/evaluate.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.4",

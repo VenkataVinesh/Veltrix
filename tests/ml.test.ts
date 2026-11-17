@@ -9,6 +9,13 @@ import {
   gbPredict,
   garchFit,
   garchPath,
+  gjrGarchFit,
+  gjrGarchPath,
+  harRvFit,
+  harRvPath,
+  conformalGarchMultiplier,
+  kalmanReturnForecast,
+  seasonalNaiveReturn,
 } from '@/lib/market/ml'
 
 function syntheticPrices(n: number, seed = 11) {
@@ -154,5 +161,48 @@ describe('GARCH(1,1) volatility model', () => {
     expect(path.step[0]).toBeGreaterThan(uncondSigma)
     expect(path.step[29]).toBeLessThan(path.step[0])
     expect(Math.abs(path.step[29] - uncondSigma)).toBeLessThan(Math.abs(path.step[0] - uncondSigma))
+  })
+})
+
+describe('GJR-GARCH, Parkinson HAR-RV, Conformal GARCH & Structural Baselines', () => {
+  it('GJR-GARCH(1,1,1) fits asymmetric volatility with stationarity (alpha + 0.5*gamma + beta < 1)', () => {
+    const { prices } = syntheticPrices(260, 31)
+    const r = prices.slice(1).map((x, i) => Math.log(x / prices[i]))
+    const fit = gjrGarchFit(r)!
+    expect(fit).not.toBeNull()
+    expect(fit.alpha + 0.5 * fit.gamma + fit.beta).toBeLessThan(1)
+    const path = gjrGarchPath(fit, 10)
+    expect(path.cumulative).toHaveLength(10)
+    expect(path.cumulative[9]).toBeGreaterThan(path.cumulative[0])
+  })
+
+  it('Parkinson HAR-RV fits 1d/5d/22d range volatility cascade and produces positive cumulative paths', () => {
+    const { prices } = syntheticPrices(260, 44)
+    const highs = prices.map((p) => p * 1.012)
+    const lows = prices.map((p) => p * 0.988)
+    const fit = harRvFit(highs, lows, prices)!
+    expect(fit).not.toBeNull()
+    expect(fit.historyLogRv).toHaveLength(22)
+    const path = harRvPath(fit, 5)
+    expect(path.cumulative).toHaveLength(5)
+    expect(path.cumulative.every((v) => Number.isFinite(v) && v > 0)).toBe(true)
+  })
+
+  it('split-conformal GARCH multiplier calibrates a positive finite quantile on training residuals', () => {
+    const { prices } = syntheticPrices(260, 52)
+    const r = prices.slice(1).map((x, i) => Math.log(x / prices[i]))
+    const g = garchFit(r)!
+    const q = conformalGarchMultiplier(r, g, 5, 0.95, 120)
+    expect(Number.isFinite(q)).toBe(true)
+    expect(q).toBeGreaterThan(1.0)
+    expect(q).toBeLessThan(5.0)
+  })
+
+  it('Kalman local-level filter and seasonal-naive baseline handle short and normal return series', () => {
+    expect(kalmanReturnForecast([0.01, -0.01])).toBe(0)
+    expect(seasonalNaiveReturn([0.01, 0.02], 5)).toBe(0)
+    const r = Array.from({ length: 40 }, () => 0.01)
+    expect(kalmanReturnForecast(r)).toBeGreaterThan(0)
+    expect(seasonalNaiveReturn([0.01, 0.02, -0.01, 0.005, 0.04], 5)).toBeCloseTo(0.0025, 6)
   })
 })

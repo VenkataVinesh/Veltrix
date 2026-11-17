@@ -15,6 +15,9 @@ import {
 } from '@/lib/evaluation'
 import { computeForecast, BASELINE_MODELS, ALL_MODELS } from '@/lib/market/analysis'
 import { garchFit, garchPath } from '@/lib/market/ml'
+import benchmarkReport from '@/docs/EVALUATION-BENCHMARK.json'
+import fs from 'node:fs'
+import path from 'node:path'
 
 /** Deterministic LCG random walk so tests never depend on Math.random. */
 function makeSeries(n: number, seed = 42, vol = 0.02) {
@@ -262,5 +265,20 @@ describe('statistical & calibration tests (Kupiec, Christoffersen, Winkler, QLIK
     const fc = computeForecast('SYN', candles, 5, { allow: ALL_MODELS, steps: 15 })!
     expect(fc).not.toBeNull()
     expect(Object.keys(fc.weights)).toEqual(expect.arrayContaining(['drift_ewma', 'ar', 'naive', 'ridge', 'gbm']))
+  })
+
+  it('keeps docs/EVALUATION-BENCHMARK.json and docs/FORECAST-EVALUATION.md in sync', () => {
+    const doc = fs.readFileSync(path.resolve(__dirname, '../docs/FORECAST-EVALUATION.md'), 'utf8')
+    const garchRow = benchmarkReport.intervalModels.find((m) => m.id === 'garch')!
+    const ewmaRow = benchmarkReport.intervalModels.find((m) => m.id === 'ewma')!
+    expect(garchRow.coverage).toBe(0.9475)
+    expect(garchRow.kupiecRejected).toBe(false)
+    expect(ewmaRow.kupiecRejected).toBe(true)
+    expect(doc).toContain(`${(garchRow.coverage * 100).toFixed(2)}%`)
+    expect(doc).toContain(String(garchRow.qlike))
+    for (const d of benchmarkReport.directionalModels) {
+      expect(doc).toContain(`${(d.hitRate * 100).toFixed(2)}%`)
+      expect(d.holmPValue).toBe(1)
+    }
   })
 })
