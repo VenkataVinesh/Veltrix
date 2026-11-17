@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import { hasEquityProvider } from '@/lib/market/providers'
+import { hasEquityProvider, hasEquityHistory } from '@/lib/market/providers'
+import { hasMacroProvider } from '@/lib/market/macro'
+import { hasLLM } from '@/lib/agents/llm'
 import { Card, Eyebrow } from '@/components/ui/primitives'
 import { SignOutButton } from '@/components/sign-out-button'
 
@@ -11,12 +13,30 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const providers = [
-    { name: 'CoinGecko', scope: 'Crypto prices & candles', ok: true, note: 'No API key required' },
+    { name: 'CoinGecko', scope: 'Crypto prices & 4h OHLC candles', ok: true, note: 'No API key required' },
     {
       name: 'Finnhub',
-      scope: 'Equity prices & candles',
+      scope: 'Live equity quotes & company headlines',
       ok: hasEquityProvider(),
-      note: hasEquityProvider() ? 'API key configured' : 'Set FINNHUB_API_KEY to enable equities',
+      note: hasEquityProvider() ? 'API key configured' : 'Set FINNHUB_API_KEY to enable live equity quotes',
+    },
+    {
+      name: 'Twelve Data / Alpha Vantage',
+      scope: 'Equity OHLC history (signals & forecasts)',
+      ok: hasEquityHistory(),
+      note: hasEquityHistory() ? 'API key configured' : 'Set TWELVEDATA_API_KEY to enable stock signals and forecasts',
+    },
+    {
+      name: 'FRED (St. Louis Fed)',
+      scope: 'Macroeconomic series (rates, CPI, labour, VIX)',
+      ok: hasMacroProvider(),
+      note: hasMacroProvider() ? 'API key configured' : 'Set FRED_API_KEY to enable the Macro view',
+    },
+    {
+      name: 'Groq / Gemini / OpenRouter',
+      scope: 'Multi-agent LLM debate',
+      ok: hasLLM(),
+      note: hasLLM() ? 'LLM provider configured' : 'Set GROQ_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY',
     },
   ]
 

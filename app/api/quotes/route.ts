@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getQuotes, CRYPTO_SYMBOLS, EQUITY_SYMBOLS, hasEquityProvider } from '@/lib/market/providers'
+import { getQuotes, CRYPTO_SYMBOLS, EQUITY_SYMBOLS, activeEquityProvider } from '@/lib/market/providers'
 
 export const revalidate = 20
 
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const quotes = await getQuotes(symbols)
     return NextResponse.json({
       quotes,
-      equityProvider: hasEquityProvider() ? 'finnhub' : null,
+      equityProvider: activeEquityProvider(),
       generatedAt: new Date().toISOString(),
     })
   } catch (err) {
