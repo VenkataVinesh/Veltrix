@@ -6,21 +6,25 @@
 [![Live demo](https://img.shields.io/badge/demo-veltrix--terminal--frontend.vercel.app-C6F24E)](https://veltrix-terminal-frontend.vercel.app)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-Live crypto pricing, a technical signal engine that shows every vote, walk-forward-validated
-forecasts with calibrated bands, and paper trading on row-level-secured portfolios.
-Next.js 14 · TypeScript · Supabase · lightweight-charts.
+Live crypto and equity pricing, an auditable technical signal engine that shows every vote, walk-forward-validated forecasts with GARCH(1,1) calibrated bands, a grounded multi-agent LLM debate, and paper trading on row-level-secured portfolios.
+Next.js 16 · TypeScript · Supabase · lightweight-charts.
 
 ![Veltrix dashboard: KPI strip, BTC chart with OHLC legend, composite signal with every indicator vote, markets table and the edge report](docs/screenshots/dashboard.png)
 
 ## Measured results
 
+Every figure below is produced by code in this repository (`lib/evaluation.ts`, `lib/market/analysis.ts`, `lib/market/ml.ts`) and can be reproduced offline in one command via `npm run evaluate`:
+
 | What | Result | Verdict |
 |---|---|---|
-| Directional hit-rate of the forecast midline, pooled over 1,500 out-of-sample walk-forward calls (6 symbols × 250) | **50.2%** (753/1,500), SE 1.29pp, z = 0.16 | **No edge.** The product says so on the page |
-| 95% interval coverage over 1,200 held-out 5-day forecasts | **94.75%** with GARCH(1,1), up from **91.67%** with the EWMA it replaced | **Calibrated.** Use the band, not the midline |
-| Ridge regression and gradient-boosted stumps added to the ensemble | RMSE change under 1%, hit-rates pulled toward 50%, 123–443× slower | **Cut** |
+| Directional hit-rate of the forecast midline, pooled over 1,500 out-of-sample walk-forward calls (6 symbols × 250) | **50.2%** (753/1,500), SE 1.29pp, $z = 0.16$, $p_{\text{Holm}} = 1.00$ | **No edge.** The product says so on the page |
+| 95% interval coverage over 1,200 held-out 5-day forecasts | **94.75%** with GARCH(1,1) (Kupiec $\text{LR}_{\text{POF}} = 0.16, p = 0.693$), up from **91.67%** with EWMA ($\text{LR}_{\text{POF}} = 24.93, p < 0.0001$) | **Calibrated.** Use the band, not the midline |
+| Candidate directional models (Ridge, Gradient-Boosted Stumps, Kalman State-Space, 5d Seasonal-Naive) | All 95% CIs span 50% ($p_{\text{Holm}} = 1.00$); learned models run **123–443× slower** | **Cut** |
+| Candidate interval models (GJR-GARCH, Parkinson HAR-RV, Split-Conformal GARCH) | GJR-GARCH passes Kupiec (**94.67%**, $p = 0.60$) at 2.5× latency; HAR-RV (**91.67%**) and Conformal (**93.08%**) fail Kupiec ($p < 0.005$) | **Benchmarked & documented** |
 
-Method, per-symbol tables and how to re-run: [docs/FORECAST-EVALUATION.md](docs/FORECAST-EVALUATION.md).
+Full protocol, per-symbol tables, Kupiec/Christoffersen/Winkler/QLIKE metrics, and how to re-run:
+- **[docs/FORECAST-EVALUATION.md](docs/FORECAST-EVALUATION.md)** — methodology, pre-registered rules, and model-by-model results
+- **[docs/DECISIONS.md](docs/DECISIONS.md)** — architectural decisions, what was tried and cut, and what comes next
 
 | Forecast and edge report | Command palette (⌘K) | Mobile |
 |---|---|---|
@@ -30,31 +34,20 @@ Method, per-symbol tables and how to re-run: [docs/FORECAST-EVALUATION.md](docs/
 
 ## Why this exists
 
-Most trading dashboards show you a confident number and hide how they got it. A "92% confidence
-BUY signal" is easy to render and impossible to check.
+Most trading dashboards show you a confident number and hide how they got it. A "92% confidence BUY signal" is easy to render and impossible to check.
 
 Veltrix is built on the opposite premise: **if a number can't be traced, it doesn't ship.**
 
 - Every BUY/SELL exposes the individual indicator votes that produced it, with weights.
-- Forecast confidence is a *measured* walk-forward hit-rate — when the model has no edge,
-  the UI says ~50% instead of inventing certainty.
-- There are no mock data paths. If a provider is unavailable, the screen says so rather
-  than falling back to invented prices.
-
-That constraint drove most of the architecture below.
+- Forecast confidence is a *measured* walk-forward hit-rate — when the model has no edge, the UI says ~50% instead of inventing certainty.
+- There are no mock data paths for market feeds. If a provider is unavailable, the screen says so rather than falling back to invented prices.
 
 ---
 
-## Live demo
+## Live demo (no login required)
 
-**[veltrix-terminal-frontend.vercel.app](https://veltrix-terminal-frontend.vercel.app)**
-
-Sign up with any email. A `handle_new_user` trigger provisions a $100,000 paper portfolio on
-signup, so the terminal is usable immediately. Crypto needs no API key, so quotes, candles,
-signals and forecasts all work out of the box.
-
-Reviewing this for a role and would rather not create an account? Email me for a demo login with
-an already-populated P&L: `venkata-vinesh-kumar-reddy.atluri@etu.ec-lyon.fr`
+- **Explore immediately (read-only demo mode):** **[veltrix-terminal-frontend.vercel.app/dashboard?demo=1](https://veltrix-terminal-frontend.vercel.app/dashboard?demo=1)** — opens the full terminal with a clearly-labelled **seeded demo portfolio** (`0.45 BTC`, `6 ETH`, `55 SOL` + `$42.5k` cash) marked to live CoinGecko prices.
+- **Full account:** Sign up at **[veltrix-terminal-frontend.vercel.app](https://veltrix-terminal-frontend.vercel.app)**. A `handle_new_user` Postgres trigger provisions a `$100,000` paper portfolio on signup, isolated by Row-Level Security.
 
 ---
 
@@ -63,46 +56,47 @@ an already-populated P&L: `venkata-vinesh-kumar-reddy.atluri@etu.ec-lyon.fr`
 ```mermaid
 flowchart TD
     subgraph Client["Browser"]
-        UI["React 18 views<br/>Tailwind v4 · GSAP · Lenis"]
-        RQ["TanStack Query<br/>cache + polling"]
+        UI["React views · Tailwind v4 · GSAP · Lenis"]
+        RQ["TanStack Query cache + staleness monitor"]
     end
 
-    subgraph Edge["Next.js on Vercel"]
-        MW["middleware.ts<br/>session refresh + route guard"]
-        API["Route handlers<br/>/api/quotes · candles · signal<br/>forecast · portfolio"]
-        ENG["lib/market/analysis.ts<br/>signal + forecast engines"]
+    subgraph Edge["Next.js 16 App Router (Vercel)"]
+        MW["middleware.ts<br/>session refresh · route guard · ?demo=1 gate"]
+        API["Route handlers<br/>/api/quotes · candles · signal · forecast · macro · agents · portfolio"]
+        ENG["lib/market/analysis.ts + ml.ts<br/>signals · GARCH(1,1) · walk-forward ensemble"]
+        AG["lib/agents/engine.ts<br/>4 analysts → 2-round bull/bear rebuttal → trader → risk gate"]
     end
 
-    subgraph Data["External"]
-        CG["CoinGecko<br/>crypto · keyless"]
-        FH["Finnhub<br/>equities · API key"]
+    subgraph Data["External Feeds & LLMs"]
+        CG["CoinGecko (crypto · keyless)"]
+        TD["Finnhub + Twelve Data / AV (equities)"]
+        FRED["FRED (macro series)"]
+        LLM["Groq · Gemini · OpenRouter (agent debate)"]
     end
 
     subgraph DB["Supabase"]
         AUTH["GoTrue Auth"]
-        PG[("Postgres<br/>RLS on every table")]
+        PG[("Postgres (RLS on all tables)")]
     end
 
     UI --> RQ --> API
     UI -->|"sign in / out"| AUTH
     MW -->|guards| UI
     API --> ENG
+    API --> AG
     API --> CG
-    API --> FH
-    API -->|"user-scoped queries"| PG
+    API --> TD
+    API --> FRED
+    AG --> LLM
+    API -->|"JWT-scoped queries"| PG
     AUTH -->|"trigger: profile + $100k portfolio"| PG
 ```
 
 ### Request path, end to end
 
-1. **`middleware.ts`** runs on every non-static request, refreshes the Supabase session cookie,
-   and redirects unauthenticated users away from `/dashboard`, `/trade`, `/markets`,
-   `/portfolio`, `/settings`.
-2. **Route handlers** fetch OHLC/quotes from the providers, run the analysis engines
-   server-side, and return plain JSON. Market endpoints use Next's `revalidate` for caching;
-   `/api/portfolio` is `force-dynamic` because it is per-user.
-3. **Postgres reads** go through the caller's JWT, so RLS — not application code — is the
-   authorisation boundary.
+1. **`middleware.ts`** runs on every non-static request, refreshes the Supabase session cookie, allows read-only demo sessions (`?demo=1` / `veltrix_demo=1`), and redirects unauthenticated visitors away from protected routes.
+2. **Route handlers** fetch OHLC/quotes/macro series from the providers, run the signal and forecast engines server-side, and return typed JSON. Market endpoints use Next's `revalidate` for edge caching; `/api/portfolio` and `/api/agents` are `force-dynamic`.
+3. **Postgres reads and writes** go through the caller's JWT, so PostgreSQL Row-Level Security (RLS) — not application code — is the authorisation boundary.
 
 ---
 
@@ -120,117 +114,28 @@ flowchart TD
 
 The votes are summed, normalised to `[-1, +1]`, and thresholded: **BUY above +0.3, SELL below −0.3.**
 
-Two deliberate correctness details:
-
-- **The momentum figure is rounded *before* thresholding.** Floating-point (`0.8 - 0.5 =
-  0.30000000000000004`) otherwise makes a score of exactly 0.3 render as "0.30" beside a BUY,
-  contradicting the stated rule.
-- **Bullish/bearish probabilities derive from the same momentum that sets the signal**, so the
-  headline and the odds can never disagree.
-
-Every component — including neutral ones — is returned to the client with its measured value,
-vote and weight. The UI renders all of them.
+- **Momentum is rounded *before* thresholding** (`Math.round(raw * 1000) / 1000`) so floating-point representation (`0.8 - 0.5 = 0.30000000000000004`) never makes a score of `0.30` render beside a `BUY`.
+- **Bullish/bearish probabilities derive from the same momentum**, so the headline and the odds never disagree.
 
 ---
 
-## The forecast engine
+## The forecast & volatility engine
 
-Three models, ensembled by **inverse-RMSE weights from a walk-forward backtest** — a model only
-earns weight by actually predicting held-out data:
+Three baseline models are ensembled by **inverse-RMSE weights from a walk-forward backtest**:
 
 | Model | Method |
 |---|---|
-| `drift_ewma` | Geometric drift (shrunk 0.5× toward zero) with RiskMetrics EWMA volatility, λ = 0.94 |
-| `ar` | AR(5) on log returns, OLS via normal equations + Gaussian elimination, iterated forward |
+| `drift_ewma` | Geometric drift (shrunk 0.5× toward zero) with RiskMetrics EWMA volatility ($\lambda = 0.94$) |
+| `ar` | AR(5) on log returns, OLS via normal equations + Gaussian elimination with partial pivoting |
 | `naive` | Random walk — the benchmark every other model must beat |
 
-Confidence bands are 95% intervals from a **GARCH(1,1)** variance path when the history is long
-enough to fit it, and from the EWMA sigma scaled by √horizon otherwise. The response's
-`methodology` field says which one was used.
+Confidence bands are 95% intervals from a **GARCH(1,1)** conditional variance path (fitted by variance-targeted Gaussian maximum likelihood) when history is at least 50 bars, and from EWMA volatility scaled by $\sqrt{\text{horizon}}$ otherwise.
 
-**Reported metrics are measured, not asserted.** MAE, RMSE and directional hit-rate come from a
-one-step-ahead walk-forward evaluation over up to 40 held-out points. The UI prints *n* and the
-95% margin of error next to every hit-rate, and labels it "not distinguishable from a coin flip"
-when it is (at n = 30 the margin is ±18pp).
-
-> Drift is shrunk toward zero on purpose: short-window drift estimates are mostly noise, and an
-> honest model does not extrapolate them at full strength.
+Additional candidate models (`ridge`, `gbm`, `kalman`, `seasonal_naive`, and volatility models `gjr_garch`, `har_rv`, `garch_conformal`) are implemented in `lib/market/ml.ts` and evaluated via `lib/evaluation.ts` and `npm run evaluate`.
 
 ---
 
-## Data providers
-
-| Source | Covers | Key required | Notes |
-|---|---|---|---|
-| **CoinGecko** | 10 crypto assets | No | `/ohlc` only accepts 1/7/14/30/90/180/365 days — other values silently return `[]`, so requests snap to the nearest supported value |
-| **Finnhub** | 10 equities | `FINNHUB_API_KEY` | Absent key returns an explicit `unavailable` marker; the UI shows a "not configured" state rather than invented prices |
-
-Granularity note: CoinGecko returns 4-hour bars at 30 days but degrades to sparse 4-day bars
-above 90, so the signal engine requests 30 days (~180 points) to keep indicators well-fed.
-
----
-
-## Data model
-
-```sql
-profiles    (id → auth.users, email, display_name)
-portfolios  (id, user_id → auth.users, name, cash)
-positions   (id, portfolio_id → portfolios, symbol, asset_type, quantity, avg_price)
-watchlist   (id, user_id → auth.users, symbol, asset_type)
-```
-
-RLS is enabled on all four. `portfolios` and `watchlist` match on `auth.uid()`; `positions` is
-owned transitively via an `EXISTS` check against the parent portfolio.
-
-A `handle_new_user` trigger on `auth.users` provisions a profile and a $100,000 paper portfolio
-on signup, so a new account is immediately usable.
-
-**Verified, not assumed:** an authenticated request returns only that user's rows; the same
-query with the anon key alone returns `[]`.
-
----
-
-## Tech stack
-
-| Layer | Choice |
-|---|---|
-| Framework | Next.js 14 (App Router, RSC + route handlers) |
-| Language | TypeScript, strict |
-| Styling | Tailwind CSS v4 with CSS-variable design tokens |
-| Charts | `lightweight-charts` v5 (area + candlestick) |
-| Motion | GSAP + ScrollTrigger (landing), Lenis smooth scroll, CSS transitions in the app |
-| Data layer | TanStack Query |
-| Auth & DB | Supabase (GoTrue + Postgres with RLS) |
-| Hosting | Vercel |
-
-### Design system (v2, terminal)
-
-Defined as tokens in `app/globals.css`, documented in [docs/DESIGN.md](docs/DESIGN.md).
-
-- **Dense but legible.** 13 px UI text, tabular figures everywhere, a 4 px spacing grid, 10 px
-  panel radius, panels with a header row instead of floating cards.
-- **Colour carries meaning only.** One accent (lime `#C6F24E`) for focus and primary actions. Up
-  `#3DD68C` and down `#FF6B6B` differ in lightness as well as hue, and are always paired with a
-  ▲/▼ and a sign. WCAG contrast on the page background: text 16.4:1, secondary 8.5:1, muted
-  5.3:1.
-- **Keyboard first.** `⌘K` / `Ctrl K` or `/` opens a command palette over pages, 79 symbols and
-  actions. `g` then a letter navigates (`g d` dashboard, `g t` trade, `g i` intelligence …), and
-  `?` lists every shortcut. Single-key shortcuts are ignored while you type in a field.
-- **Every state designed.** Shimmer skeletons shaped like the content, error states with retry,
-  "provider not configured" states that name the missing key, and empty states with a next step.
-- **Motion is feedback.** 120–180 ms transitions, price flashes on change, transform-only
-  entrances (an opacity entrance can leave content invisible if the animation never runs). All
-  of it is off under `prefers-reduced-motion`.
-- **Responsive by layout, not by shrinking.** An icon rail at 1024 px, rail plus labels from
-  1280 px, a stacked layout with a bottom tab bar on phones. Verified at 1440, 1024, 768 and
-  390 px.
-
-The landing hero is a generative canvas drawn from the **real 30-day BTC close series**. The
-preloader that locks scroll has a 4-second failsafe.
-
----
-
-## Running locally
+## Running locally & reproducing the evaluation
 
 ```bash
 git clone https://github.com/VenkataVinesh/Veltrix.git
@@ -239,29 +144,26 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. It runs with **no configuration** — it falls back to the public
-demo Supabase project, and crypto data needs no key.
+Open <http://localhost:3000> (or <http://localhost:3000/dashboard?demo=1> to jump straight into the read-only demo terminal). Crypto quotes, candles, signals, and forecasts work out of the box with **zero configuration**.
 
-To point at your own Supabase project, copy `.env.example` to `.env.local`:
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxx
-FINNHUB_API_KEY=            # optional — enables equities
-```
-
-> The Supabase **publishable/anon** key is designed to ship in client bundles; it grants no
-> privileges by itself. RLS is the security boundary. Never put the *service role* key here.
+### Reproduce all published evaluation tables offline
 
 ```bash
-npm test           # vitest: indicators, signal, forecast invariants, and a regression test
-                   # that reproduces a captured production /api/signal response from real candles
-npx tsc --noEmit   # type check
-npm run lint
-npm run build      # production build
+npm run evaluate   # runs scripts/evaluate.ts against tests/fixtures/equities-daily-2026-11-04.json
+                   # and writes docs/EVALUATION-BENCHMARK.json (no API keys required)
 ```
 
-CI runs all four on every push and pull request.
+### Quality & CI checks
+
+```bash
+npm test                                    # Vitest suite (52 tests: anti-lookahead referee, Kupiec/Christoffersen, ML, indicators, routes)
+npx tsc --noEmit                            # strict TypeScript check
+npm run lint                                # ESLint
+npm audit --omit=dev --audit-level=high     # zero high/critical production advisories
+npm run build                               # Next.js 16 production build
+```
+
+CI (`.github/workflows/frontend.yml`) enforces all five on every push and pull request.
 
 ---
 
@@ -271,57 +173,49 @@ CI runs all four on every push and pull request.
 app/
   (app)/           dashboard · trade · markets · intelligence · macro · portfolio · settings
   api/             quotes · candles · signal · forecast · macro · agents · portfolio
-  login/ signup/   Supabase auth
+  login/ signup/   Supabase auth + one-click read-only demo entry
   page.tsx         cinematic landing
 components/
-  app-shell.tsx    rail, live status bar, mobile tab bar, global shortcuts
-  command-palette.tsx  ⌘K palette (pages, symbols, actions)
-  edge-report.tsx  the measured-results panel shown on the dashboard, intelligence and landing
+  app-shell.tsx    rail, live status bar with staleness detection, demo banner, shortcuts
+  command-palette.tsx  ⌘K palette (pages, 79 symbols, actions)
+  edge-report.tsx  the measured-results panel (direction + GARCH Kupiec calibration)
   motion/          preloader, kinetic text, reveals, magnetic, cursor, marquee
-  views/           one component per screen
-  ui/glossary.tsx  plain-English definition for every number the app shows
+  views/           one component per screen (loading, empty, error-with-retry, stale/demo states)
+  ui/glossary.tsx  plain-English definition for every quantitative term
   hero-canvas.tsx  generative live-data hero
-  price-chart.tsx  lightweight-charts wrapper
+  price-chart.tsx  lightweight-charts wrapper with screen-reader summary
 lib/
-  evaluation.ts    offline results, copied from docs/FORECAST-EVALUATION.md (single source)
-  market/          providers.ts (CoinGecko/Twelve Data/Finnhub) · analysis.ts (signal +
-                   forecast) · ml.ts (GARCH, plus two models the backtest rejected) ·
-                   macro.ts (FRED series)
-  agents/          multi-agent debate — context gathering, prompts, engine
+  evaluation.ts    purged walk-forward referee, Kupiec POF, Christoffersen, Winkler, QLIKE
+  market/          providers.ts · analysis.ts · ml.ts (GARCH, GJR-GARCH, HAR-RV, Conformal,
+                   Kalman, Ridge, GBM) · macro.ts (FRED series)
+  agents/          multi-agent debate — sourced evidence gathering, prompts, 2-round engine
   supabase/        client · server · config
-middleware.ts      session refresh + route guarding (public allowlist, fails closed)
-tests/             vitest suite + real captured BTC candles as a fixture
+scripts/
+  evaluate.ts      deterministic offline evaluation runner (`npm run evaluate`)
+tests/             vitest suites (evaluation, ml, analysis, routes) + captured market fixtures
 docs/
-  FORECAST-EVALUATION.md   what was measured, and what got cut for failing
-  DESIGN.md                tokens, type scale, components
-  screenshots/             current UI (and before/ for the previous design)
+  FORECAST-EVALUATION.md   methodology, pre-registered protocol, and model-by-model results
+  EVALUATION-BENCHMARK.json machine-readable output of `npm run evaluate`
+  DECISIONS.md             engineering trade-offs, negative results, and roadmap
+  DESIGN.md                tokens, type scale, accessibility, and layout rules
 ```
 
 ---
 
 ## Honest limitations
 
-Stated plainly, because the whole point of the project is not overclaiming:
-
-- **The forecast has no directional edge, and this is measured.** Pooled over 1,500
-  out-of-sample walk-forward calls the hit-rate is 50.2% (z = 0.16) — a coin flip. Ridge
-  regression and gradient-boosted trees were built, backtested and cut for failing to beat
-  that. What *is* calibrated is the 95% band: 94.75% measured coverage against 95% nominal,
-  after GARCH(1,1) replaced an EWMA estimate that was delivering only 91.7%. Use the band,
-  not the midline. Full method and tables: [docs/FORECAST-EVALUATION.md](docs/FORECAST-EVALUATION.md).
+- **The forecast has no directional edge, and this is measured.** Pooled over 1,500 out-of-sample walk-forward calls the hit-rate is 50.2% ($z = 0.16, p_{\text{Holm}} = 1.00$) — a coin flip. Seven directional models were tested; none beat chance. What *is* calibrated is the 95% GARCH(1,1) band: 94.75% measured coverage against 95% nominal (Kupiec $p = 0.693$). Use the band, not the midline.
 - **Sell orders are not implemented.** The button is visibly disabled and labelled.
 - **Paper trading only.** No broker integration; no real order ever leaves the browser.
 - **Not investment advice.** The signal engine is a transparent technical composite, not alpha.
-- **Free-tier rate limits.** CoinGecko, Finnhub and Twelve Data all throttle; heavy refreshing
-  will 429. Twelve Data's free daily budget is 800 credits.
-- **Equities need a key.** Without `TWELVEDATA_API_KEY` there is no equity history, so no
-  stock signals or forecasts — the app says so rather than inventing bars.
+- **Free-tier rate limits.** CoinGecko, Finnhub, and Twelve Data all throttle; heavy refreshing will 429. Twelve Data's free daily budget is 800 credits.
+- **Equities need a key.** Without `TWELVEDATA_API_KEY` there is no live equity history, so the app reports equity history as unavailable rather than inventing bars (the offline benchmark uses the pinned fixture in `tests/fixtures/`).
 
 ---
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Security policy: [SECURITY.md](SECURITY.md). Third-party credits: [CREDITS.md](CREDITS.md).
 
 Built by **Venkata Vinesh Kumar Reddy Atluri** ·
 [Portfolio](https://venkatavinesh.github.io/PortFolio_Build_Gem/) ·
